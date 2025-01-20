@@ -24,7 +24,7 @@ export function Auth() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
-  const { user, isAuthenticated } = useUser();
+  const { user, isAuthenticated, setUser } = useUser();
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -34,9 +34,10 @@ export function Auth() {
   useEffect(() => {
     if (isAuthenticated) {
       const returnTo = searchParams.get('return_to');
-      router.push(returnTo || '/dashboard');
+      const userTier = user?.tier || 'single-user';
+      router.push(returnTo || `/dashboard/${userTier}`);
     }
-  }, [isAuthenticated, router, searchParams]);
+  }, [isAuthenticated, router, searchParams, user]);
 
   const handleAuthResponse = async (response, action) => {
     const { data, error } = response;
@@ -70,11 +71,13 @@ export function Auth() {
         return null;
       }
 
-      return {
+      const userWithData = {
         id: data.user.id,
         email: data.user.email,
         ...userData,
       };
+      setUser(userWithData);
+      return userWithData;
     }
 
     return null;
@@ -105,7 +108,8 @@ export function Auth() {
       const userData = await handleAuthResponse(response, 'signing in');
       if (userData) {
         const returnTo = searchParams.get('return_to');
-        router.push(returnTo || '/dashboard');
+        const userTier = user?.tier || 'single-user';
+        router.push(returnTo || `/dashboard/${userTier}`);
       }
     } finally {
       setLoading(false);
@@ -125,7 +129,8 @@ export function Auth() {
       const userData = await handleAuthResponse(response, 'signing up');
       if (userData) {
         const returnTo = searchParams.get('return_to');
-        router.push(returnTo || '/checkout');
+        const userTier = user?.tier || 'single-user';
+        router.push(returnTo || `/dashboard/${userTier}`);
       }
     } finally {
       setLoading(false);

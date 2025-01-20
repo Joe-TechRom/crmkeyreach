@@ -5,48 +5,32 @@ const nextConfig = {
 
   images: {
     remotePatterns: [
-      {
-        protocol: 'http',
-        hostname: 'localhost'
-      },
-      {
-        protocol: 'https',
-        hostname: 'your-supabase-project.supabase.co'
-      },
-      {
-        protocol: 'https',
-        hostname: '*.supabase.co'
-      },
-      {
-        protocol: 'https',
-        hostname: 'keyreach-crm.vercel.app'
-      }
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'https', hostname: 'your-supabase-project.supabase.co' },
+      { protocol: 'https', hostname: '*.supabase.co' },
+      { protocol: 'https', hostname: 'keyreach-crm.vercel.app' }
     ],
     domains: ['localhost', 'keyreach-crm.vercel.app'],
-    unoptimized: true, // Changed for standalone compatibility
+    unoptimized: true,
     minimumCacheTTL: 60,
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384]
   },
 
-  output: {
-    standalone: true,
-    export: true
-  },
+  output: 'standalone',
 
-  // Your existing webpack config
   webpack: (config, { dev, isServer }) => {
     config.resolve = {
       ...config.resolve,
       fallback: {
-        ...config.resolve.fallback,
         net: false,
         dns: false,
         tls: false,
         fs: false,
-        request: false
+        request: false,
+        ...config.resolve.fallback,
       }
-    }
+    };
 
     config.module.rules.push({
       test: /\.svg$/,
@@ -54,42 +38,29 @@ const nextConfig = {
         loader: '@svgr/webpack',
         options: {
           svgoConfig: {
-            plugins: [
-              {
-                name: 'removeViewBox',
-                active: false
-              }
-            ]
+            plugins: [{ name: 'removeViewBox', active: false }]
           }
         }
       }]
-    })
+    });
 
-    return config
+    return config;
   },
+
   experimental: {
-    optimizeCss: {
-      critters: {
-        ssrMode: 'sync',
-        preload: 'media',
-        pruneSource: true,
-        reduceInlineStyles: true,
-        mergeStylesheets: true,
-      }
-    },
-    // Updated turbo syntax to use rules instead of loaders
+    optimizeCss: true,
     turbo: {
       rules: {
         '*.svg': ['@svgr/webpack']
       }
     },
     scrollRestoration: true,
-    // Added modern optimizations
     serverActions: {
       bodySizeLimit: '2mb'
     },
     optimizePackageImports: ['@chakra-ui/react', 'framer-motion'],
-    instrumentationHook: true
+    instrumentationHook: true,
+    serverComponentsExternalPackages: []
   },
 
   compiler: {
@@ -97,45 +68,28 @@ const nextConfig = {
     styledComponents: true
   },
 
-  // Security and performance optimizations
   poweredByHeader: false,
   compress: true,
   generateEtags: true,
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-  output: 'standalone',
   productionBrowserSourceMaps: false,
   optimizeFonts: true,
 
-  // Development optimizations
   onDemandEntries: {
     maxInactiveAge: 25 * 1000,
     pagesBufferLength: 2
   },
 
-  // Added security headers
-  headers: async () => [
-    {
-      source: '/:path*',
-      headers: [
-        {
-          key: 'X-DNS-Prefetch-Control',
-          value: 'on'
-        },
-        {
-          key: 'X-XSS-Protection',
-          value: '1; mode=block'
-        },
-        {
-          key: 'X-Frame-Options',
-          value: 'SAMEORIGIN'
-        },
-        {
-          key: 'X-Content-Type-Options',
-          value: 'nosniff'
-        }
-      ]
-    }
-  ]
-}
+  headers: async () => [{
+    source: '/:path*',
+    headers: [
+      { key: 'X-DNS-Prefetch-Control', value: 'on' },
+      { key: 'X-XSS-Protection', value: '1; mode=block' },
+      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'origin-when-cross-origin' }
+    ]
+  }]
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

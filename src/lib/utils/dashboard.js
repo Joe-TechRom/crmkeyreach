@@ -1,46 +1,21 @@
-import { redirect } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
-
-export async function redirectDashboard(user) {
-  console.log("redirectDashboard called with user:", user);
-
+export function getDashboardRoute(user) {
   if (!user) {
-    console.log("No user found, returning");
-    return;
+    return '/auth/signin';
   }
 
-  const hasActiveSubscription = await checkUserSubscription(user.id);
-  console.log("hasActiveSubscription:", hasActiveSubscription);
-
-  if (hasActiveSubscription) {
-    console.log("Redirecting to dashboard");
-    redirect('/dashboard');
-  } else {
-    console.log("Redirecting to pricing");
-    redirect('/pricing');
+  switch (user.tier) {
+    case 'single-user':
+      return '/dashboard/single-user';
+    case 'team':
+      return '/dashboard/team';
+    case 'corporate':
+      return '/dashboard/corporate';
+    default:
+      return '/dashboard/single-user';
   }
 }
 
-async function checkUserSubscription(userId) {
-  console.log("checkUserSubscription called with userId:", userId);
-  try {
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .single();
-
-    console.log("Subscription data:", data, "error:", error);
-
-    if (error) {
-      console.error("Error fetching subscription:", error);
-      return false;
-    }
-
-    return !!data;
-  } catch (error) {
-    console.error("Error checking subscription:", error);
-    return false;
-  }
+export function redirectDashboard(user, router) {
+  const route = getDashboardRoute(user);
+  router.push(route);
 }

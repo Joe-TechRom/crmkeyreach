@@ -1,72 +1,74 @@
-import { useState, useEffect, useCallback } from 'react'
-import { create } from 'zustand'
-import { supabase } from '@/lib/supabaseClient'
-import { User } from '@/types/db'
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { create } from 'zustand';
+import { supabase } from '@/lib/supabaseClient';
+import { User } from '@/types/db';
 
 interface AuthState {
-  user: User | null
-  setUser: (user: User | null) => void
-  isAuthenticated: boolean
+  user: User | null;
+  setUser: (user: User | null) => void;
+  isAuthenticated: boolean;
 }
 
 const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   setUser: (user) => set({ user, isAuthenticated: !!user })
-}))
+}));
 
 export const useUser = () => {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  const { user, setUser, isAuthenticated } = useAuthStore()
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { user, setUser, isAuthenticated } = useAuthStore();
 
   const fetchUser = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
       
       if (supabaseUser) {
         const { data: userData } = await supabase
           .from('users')
           .select('*')
           .eq('id', supabaseUser.id)
-          .single()
+          .single();
         
         const userWithData = {
           id: supabaseUser.id,
           email: supabaseUser.email,
           ...userData
-        }
+        };
         
-        setUser(userWithData)
+        setUser(userWithData);
       } else {
-        setUser(null)
+        setUser(null);
       }
     } catch (err) {
-      setError(err as Error)
-      setUser(null)
+      setError(err as Error);
+      setUser(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [setUser])
+  }, [setUser]);
 
   useEffect(() => {
-    fetchUser()
+    fetchUser();
     
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        await fetchUser()
+        await fetchUser();
       } else if (event === 'SIGNED_OUT') {
-        setUser(null)
+        setUser(null);
       }
-    })
+    });
 
     return () => {
-      subscription?.unsubscribe()
+      subscription?.unsubscribe();
     }
-  }, [fetchUser])
+  }, [fetchUser]);
 
-  return { user, loading, error, isAuthenticated }
-}
+  return { user, loading, error, isAuthenticated };
+};
