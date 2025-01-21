@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
+import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './AuthProvider'
 import {
@@ -23,7 +23,7 @@ export default function AuthForm() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    selectedTier: 'basic'
+    selectedTier: 'single_user'
   })
 
   const supabase = createBrowserClient(
@@ -40,6 +40,9 @@ export default function AuthForm() {
         email: formData.email,
         password: formData.password,
         options: {
+          data: {
+            subscription_tier: formData.selectedTier
+          },
           emailRedirectTo: `${window.location.origin}/auth/callback`
         }
       })
@@ -47,23 +50,28 @@ export default function AuthForm() {
       if (error) throw error
 
       if (user) {
-        await supabase
+        const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: user.id,
-            tier: formData.selectedTier,
+            email: formData.email,
+            subscription_tier: formData.selectedTier,
+            subscription_status: 'trialing',
             created_at: new Date().toISOString(),
-            tier_start_date: new Date().toISOString()
+            subscription_period_end: null,
+            stripe_customer_id: null
           })
+
+        if (profileError) throw profileError
 
         toast({
           title: 'Account created successfully',
-          description: 'Please check your email to verify your account',
+          description: 'Redirecting to payment...',
           status: 'success',
-          duration: 5000,
+          duration: 3000,
         })
-
-        redirectToDashboard(user)
+        
+        router.push(`/checkout?session_id=${user.id}&tier=${formData.selectedTier}`)
       }
     } catch (error) {
       toast({
@@ -89,7 +97,17 @@ export default function AuthForm() {
 
       if (error) throw error
 
-      redirectToDashboard(user)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_tier, subscription_status')
+        .eq('id', user.id)
+        .single()
+
+      if (profile?.subscription_status === 'active') {
+        redirectToDashboard(user)
+      } else {
+        router.push(`/checkout?session_id=${user.id}&tier=${profile?.subscription_tier}`)
+      }
     } catch (error) {
       toast({
         title: 'Sign in failed',
@@ -121,7 +139,6 @@ export default function AuthForm() {
             onChange={handleInputChange}
           />
         </FormControl>
-
         <FormControl isRequired>
           <FormLabel>Password</FormLabel>
           <Input
@@ -131,7 +148,6 @@ export default function AuthForm() {
             onChange={handleInputChange}
           />
         </FormControl>
-
         <FormControl>
           <FormLabel>Select Tier</FormLabel>
           <Select
@@ -139,12 +155,11 @@ export default function AuthForm() {
             value={formData.selectedTier}
             onChange={handleInputChange}
           >
-            <option value="basic">Basic</option>
-            <option value="professional">Professional</option>
-            <option value="enterprise">Enterprise</option>
+            <option value="single_user">Single User</option>
+            <option value="team">Team</option>
+            <option value="corporate">Corporate</option>
           </Select>
         </FormControl>
-
         <Button
           type="submit"
           colorScheme="blue"
@@ -154,7 +169,6 @@ export default function AuthForm() {
         >
           Sign Up
         </Button>
-
         <Button
           onClick={handleSignIn}
           variant="outline"

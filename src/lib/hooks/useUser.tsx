@@ -1,74 +1,50 @@
-'use client';
+import { useState, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 
-import { useState, useEffect, useCallback } from 'react';
-import { create } from 'zustand';
-import { supabase } from '@/lib/supabaseClient';
-import { User } from '@/types/db';
-
-interface AuthState {
-  user: User | null;
-  setUser: (user: User | null) => void;
-  isAuthenticated: boolean;
-}
-
-const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isAuthenticated: false,
-  setUser: (user) => set({ user, isAuthenticated: !!user })
-}));
-
-export const useUser = () => {
+export function useUser() {
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const { user, setUser, isAuthenticated } = useAuthStore();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const fetchUser = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-      
-      if (supabaseUser) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', supabaseUser.id)
-          .single();
-        
-        const userWithData = {
-          id: supabaseUser.id,
-          email: supabaseUser.email,
-          ...userData
-        };
-        
-        setUser(userWithData);
-      } else {
-        setUser(null);
-      }
-    } catch (err) {
-      setError(err as Error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [setUser]);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
 
   useEffect(() => {
-    fetchUser();
-    
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        await fetchUser();
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setUser(session.user);
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        setLoading(false);
       }
-    });
+    };
+
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          setUser(session.user);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+        setLoading(false);
+      }
+    );
 
     return () => {
-      subscription?.unsubscribe();
-    }
-  }, [fetchUser]);
+      subscription.unsubscribe();
+    };
+  }, []);
 
-  return { user, loading, error, isAuthenticated };
-};
+  return { user, loading, isAuthenticated, setUser };
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/ssr'
 import { UpgradeFlow } from './actions/UpgradeFlow'
 import { CancelFlow } from './actions/CancelFlow'
 import { UsageTracker } from './usage/UsageTracker'
@@ -21,26 +21,38 @@ import {
   Flex
 } from '@chakra-ui/react'
 
+const TIER_DISPLAY_NAMES = {
+  single_user: 'Single User',
+  team: 'Team',
+  corporate: 'Corporate'
+}
+
 export default function SubscriptionManager() {
   const [subscription, setSubscription] = useState(null)
   const [usageData, setUsageData] = useState(null)
-  const supabase = createClientComponentClient()
+  const [profile, setProfile] = useState(null)
   const toast = useToast()
 
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+
   useEffect(() => {
-    fetchSubscription()
+    fetchSubscriptionData()
     setupRealtimeSubscription()
   }, [])
 
   const setupRealtimeSubscription = () => {
     const channel = supabase
-      .channel('subscription_updates')
+      .channel('profile_updates')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'subscriptions'
+        table: 'profiles'
       }, (payload) => {
-        setSubscription(payload.new)
+        setProfile(payload.new)
+        fetchSubscriptionData()
       })
       .subscribe()
 
@@ -49,20 +61,42 @@ export default function SubscriptionManager() {
     }
   }
 
-  const fetchSubscription = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select(`
-        *,
-        subscription_items (*)
-      `)
-      .eq('user_id', user.id)
-      .single()
-    
-    setSubscription(subscription)
-    if (subscription?.subscription_items) {
-      setUsageData(subscription.subscription_items)
+  const fetchSubscriptionData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) return
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError) throw profileError
+
+      setProfile(profileData)
+
+      // Fetch usage data if needed
+      if (profileData.subscription_status === 'active') {
+        const { data: usageData, error: usageError } = await supabase
+          .from('usage_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30)
+
+        if (!usageError) {
+          setUsageData(usageData)
+        }
+      }
+    } catch (error) {
+      toast({
+        title: 'Error fetching subscription data',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      })
     }
   }
 
@@ -74,34 +108,43 @@ export default function SubscriptionManager() {
           <NotificationCenter />
         </Flex>
         
-        {subscription && (
+        {profile && (
           <Stack spacing={8}>
             <UsageAlerts 
-              usage={usageData?.reduce((acc, item) => ({
-                ...acc,
-                [item.type]: item.quantity
-              }), {})}
-              limits={subscription.subscription_items?.reduce((acc, item) => ({
-                ...acc,
-                [item.type]: item.unit_amount
-              }), {})}
+              subscription={profile}
+              usage={usageData}
             />
-
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={8}>
               <Box p={6} shadow="xl" borderWidth="1px" borderRadius="lg" bg="white">
                 <Stack spacing={4}>
                   <Heading size="md">Current Plan</Heading>
-                  <Text>Plan: {subscription.plan_id}</Text>
-                  <Text>Status: <Badge colorScheme={subscription.status === 'active' ? 'green' : 'yellow'}>{subscription.status}</Badge></Text>
-                  <Text>Additional Users: {subscription.additional_users}</Text>
-                  <Text>Billing Cycle: {subscription.billing_cycle}</Text>
+                  <Text>Plan: {TIER_DISPLAY_NAMES[profile.subscription_tier]}</Text>
+                  <Text>
+                    Status: 
+                    <Badge colorScheme={profile.subscription_status === 'active' ? 'green' : 'yellow'}>
+                      {profile.subscription_status}
+                    </Badge>
+                  </Text>
+                  <Text>
+                    Next Billing Date: {
+                      profile.subscription_period_end 
+                        ? new Date(profile.subscription_period_end).toLocaleDateString() 
+                        : 'N/A'
+                    }
+                  </Text>
                   
                   <Divider />
                   
                   <Stack direction="row" spacing={4}>
-                    <UpgradeFlow currentPlan={subscription.plan_id} />
-                    {subscription.status === 'active' && (
-                      <CancelFlow subscriptionId={subscription.id} />
+                    <UpgradeFlow 
+                      currentTier={profile.subscription_tier}
+                      stripeCustomerId={profile.stripe_customer_id}
+                    />
+                    {profile.subscription_status === 'active' && (
+                      <CancelFlow 
+                        userId={profile.id}
+                        stripeCustomerId={profile.stripe_customer_id}
+                      />
                     )}
                   </Stack>
                 </Stack>
@@ -110,7 +153,7 @@ export default function SubscriptionManager() {
               <Box p={6} shadow="xl" borderWidth="1px" borderRadius="lg" bg="white">
                 <Stack spacing={4}>
                   <Heading size="md">Usage Overview</Heading>
-                  <UsageTracker subscriptionId={subscription.id} />
+                  <UsageTracker profileId={profile.id} />
                   <UsageChart data={usageData} />
                 </Stack>
               </Box>

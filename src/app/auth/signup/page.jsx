@@ -36,14 +36,15 @@ const SignupPage = () => {
     phoneNumber: '',
   })
   const [passwordError, setPasswordError] = useState('')
+
   const bgColor = useColorModeValue('white', 'gray.800')
   const textColor = useColorModeValue('gray.600', 'gray.200')
   const borderColor = useColorModeValue('gray.200', 'gray.600')
-  const planType = searchParams.get('plan')
 
-  // Price ID mapping
+  const planType = searchParams.get('plan') || 'single_user'
+
   const priceMapping = {
-    basic: 'price_1Qh2SzCXsI8HJmkTjmfrGRcl',
+    single_user: 'price_1Qh2SzCXsI8HJmkTjmfrGRcl',
     team: 'price_1Qh2VLCXsI8HJmkTlYgczg6W',
     corporate: 'price_1Qh2XjCXsI8HJmkTASiB8nZz',
   }
@@ -66,19 +67,19 @@ const SignupPage = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/checkout`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
+            plan: planType
           },
         },
       })
       if (error) throw error
-      router.push('/checkout')
     } catch (error) {
       toast({
         title: 'Signup failed',
-        description: 'Unable to complete signup process',
+        description: error.message,
         status: 'error',
         duration: 5000,
       })
@@ -87,76 +88,70 @@ const SignupPage = () => {
     }
   }
 
- const handleSignup = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
-  setPasswordError('');
+  const handleSignup = async (e) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setPasswordError('')
 
-  if (formData.password !== formData.confirmPassword) {
-    setPasswordError('Passwords do not match');
-    setIsLoading(false);
-    return;
-  }
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError('Passwords do not match')
+      setIsLoading(false)
+      return
+    }
 
-  try {
-    const { data: { user }, error } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-      options: {
-        data: {
-          name: formData.name,
-          phoneNumber: formData.phoneNumber,
-          selectedPlan: planType,
+    try {
+      const { data: { user }, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            phoneNumber: formData.phoneNumber,
+            subscription_tier: planType,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
         },
-      },
-    });
+      })
 
-    if (error) {
-      console.error('Signup error:', error);
+      if (error) throw error
+
+      if (user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: formData.email,
+            full_name: formData.name,
+            phone_number: formData.phoneNumber,
+            subscription_tier: planType,
+            subscription_status: 'trialing',
+            created_at: new Date().toISOString(),
+            stripe_customer_id: null,
+            subscription_price_id: priceMapping[planType]
+          })
+
+        if (profileError) throw profileError
+
+        toast({
+          title: 'Account created successfully',
+          description: 'Redirecting to payment...',
+          status: 'success',
+          duration: 3000,
+        })
+
+        router.push(`/checkout?session_id=${user.id}&tier=${planType}`)
+      }
+    } catch (error) {
       toast({
         title: 'Signup failed',
         description: error.message,
         status: 'error',
         duration: 5000,
-      });
-      throw error;
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    // Fetch the user data to update the user state
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (userError) {
-      console.error('Error fetching user data:', userError);
-      throw userError;
-    }
-
-    // Update the user state using the useUser hook
-    // Assuming you have a setUser function in your useUser hook
-    // You will need to modify your useUser hook to expose a setUser function
-    // For example: const { user, loading, error, setUser } = useUser();
-    // setUser({
-    //   id: user.id,
-    //   email: user.email,
-    //   firstName: userData?.firstName || user.user_metadata?.firstName || 'User',
-    //   lastName: userData?.lastName || user.user_metadata?.lastName || '',
-    //   avatarUrl: userData?.avatarUrl || user.user_metadata?.avatar_url || null,
-    //   ...userData,
-    // });
-
-    // Create an initial subscription for the user
-    // You will need to implement the createSubscription function
-    // await createSubscription(user.id, priceMapping[planType]);
-
-    router.push('/checkout');
-  } catch (error) {
-    setIsLoading(false);
   }
-};
-
 
   return (
     <Container maxW="lg" py={12}>
@@ -244,8 +239,8 @@ const SignupPage = () => {
                     borderColor={borderColor}
                     color={textColor}
                   />
-                  </FormControl>
-                  <FormControl isRequired isInvalid={!!passwordError}>
+                </FormControl>
+                <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel color={textColor}>Confirm Password</FormLabel>
                   <Input
                     type="password"

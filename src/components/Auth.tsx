@@ -32,12 +32,31 @@ export function Auth() {
   );
 
   useEffect(() => {
-    if (isAuthenticated) {
-      const returnTo = searchParams.get('return_to');
-      const userTier = user?.tier || 'single-user';
-      router.push(returnTo || `/dashboard/${userTier}`);
-    }
-  }, [isAuthenticated, router, searchParams, user]);
+    const checkSubscriptionAndRedirect = async () => {
+      if (isAuthenticated && user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_tier, subscription_status')
+          .eq('id', user.id)
+          .single();
+
+        const returnTo = searchParams.get('return_to');
+        
+        if (profile?.subscription_status === 'active') {
+          const dashboardRoutes = {
+            single_user: '/dashboard/single-user',
+            team: '/dashboard/team',
+            corporate: '/dashboard/corporate'
+          };
+          router.push(returnTo || dashboardRoutes[profile.subscription_tier]);
+        } else {
+          router.push(`/checkout?session_id=${user.id}&tier=${profile?.subscription_tier}`);
+        }
+      }
+    };
+
+    checkSubscriptionAndRedirect();
+  }, [isAuthenticated, user]);
 
   const handleAuthResponse = async (response, action) => {
     const { data, error } = response;
@@ -54,32 +73,23 @@ export function Auth() {
     }
 
     if (data?.user) {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
+      const { data: profile } = await supabase
+        .from('profiles')
         .select('*')
         .eq('id', data.user.id)
         .single();
 
-      if (userError) {
-        toast({
-          title: 'Error fetching user data',
-          description: userError.message,
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-        return null;
-      }
-
       const userWithData = {
         id: data.user.id,
         email: data.user.email,
-        ...userData,
+        subscription_tier: profile?.subscription_tier || 'single_user',
+        subscription_status: profile?.subscription_status || 'trialing',
+        ...profile
       };
+
       setUser(userWithData);
       return userWithData;
     }
-
     return null;
   };
 
@@ -90,6 +100,10 @@ export function Auth() {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         },
       });
       await handleAuthResponse(response, 'signing in with Google');
@@ -107,9 +121,16 @@ export function Auth() {
       });
       const userData = await handleAuthResponse(response, 'signing in');
       if (userData) {
-        const returnTo = searchParams.get('return_to');
-        const userTier = user?.tier || 'single-user';
-        router.push(returnTo || `/dashboard/${userTier}`);
+        if (userData.subscription_status === 'active') {
+          const dashboardRoutes = {
+            single_user: '/dashboard/single-user',
+            team: '/dashboard/team',
+            corporate: '/dashboard/corporate'
+          };
+          router.push(dashboardRoutes[userData.subscription_tier]);
+        } else {
+          router.push(`/checkout?session_id=${userData.id}&tier=${userData.subscription_tier}`);
+        }
       }
     } finally {
       setLoading(false);
@@ -128,9 +149,7 @@ export function Auth() {
       });
       const userData = await handleAuthResponse(response, 'signing up');
       if (userData) {
-        const returnTo = searchParams.get('return_to');
-        const userTier = user?.tier || 'single-user';
-        router.push(returnTo || `/dashboard/${userTier}`);
+        router.push(`/checkout?session_id=${userData.id}&tier=single_user`);
       }
     } finally {
       setLoading(false);
@@ -157,13 +176,11 @@ export function Auth() {
         >
           Sign in with Google
         </Button>
-
         <Divider />
         
         <Text textAlign="center" color="gray.500">
           Or sign in with email
         </Text>
-
         <FormControl>
           <FormLabel>Email</FormLabel>
           <Input
@@ -173,7 +190,6 @@ export function Auth() {
             size="lg"
           />
         </FormControl>
-
         <FormControl>
           <FormLabel>Password</FormLabel>
           <Input
@@ -183,7 +199,6 @@ export function Auth() {
             size="lg"
           />
         </FormControl>
-
         <Stack direction="row" spacing={4} width="100%">
           <Button
             isLoading={loading}
