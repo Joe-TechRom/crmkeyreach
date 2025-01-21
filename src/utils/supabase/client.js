@@ -1,16 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
-// Single, shared Supabase instance
-const supabase = createClient(
+const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   {
     auth: {
       persistSession: true,
-      storageKey: 'keyreach-auth'
+      storageKey: 'keyreach-auth',
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce'
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
     }
   }
 )
 
-// Export the singleton instance
 export { supabase }

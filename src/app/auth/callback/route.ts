@@ -1,56 +1,46 @@
-import { createClient } from '@/utils/supabase/server'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { NextRequest } from 'next/server'
-import { getErrorRedirect, getStatusRedirect } from '@/utils/helpers'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const tier = requestUrl.searchParams.get('tier') || 'single_user'
-
+  
   if (code) {
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { user }, error } = await supabase.auth.exchangeCodeForSession(code)
 
-    if (error) {
-      return NextResponse.redirect(
-        getErrorRedirect(
-          `${requestUrl.origin}/signin`,
-          error.name,
-          "Sorry, we weren't able to log you in. Please try again."
-        )
-      )
-    }
-
-    if (data.user) {
-      const { data: profile } = await supabase
+    if (user) {
+      // Ensure profile exists
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .select('subscription_status, subscription_tier')
-        .eq('id', data.user.id)
+        .select()
+        .eq('id', user.id)
         .single()
 
-      if (profile?.subscription_status === 'active') {
-        const dashboardRoutes = {
-          single_user: '/dashboard/single-user',
-          team: '/dashboard/team',
-          corporate: '/dashboard/corporate'
+      if (!existingProfile) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata.full_name,
+            phone_number: user.user_metadata.phone_number,
+            subscription_tier: user.user_metadata.subscription_tier || 'single_user',
+            subscription_status: 'trialing',
+            created_at: new Date().toISOString()
+          })
+
+        if (profileError) {
+          return NextResponse.redirect(
+            `${requestUrl.origin}/auth/error?message=${encodeURIComponent(profileError.message)}`
+          )
         }
-        return NextResponse.redirect(
-          `${requestUrl.origin}${dashboardRoutes[profile.subscription_tier]}`
-        )
       }
 
-      return NextResponse.redirect(
-        `${requestUrl.origin}/checkout?session_id=${data.user.id}&tier=${tier}`
-      )
+      return NextResponse.redirect(`${requestUrl.origin}/checkout?session_id=${user.id}`)
     }
   }
 
-  return NextResponse.redirect(
-    getStatusRedirect(
-      `${requestUrl.origin}/account`,
-      'Success!',
-      'You are now signed in.'
-    )
-  )
+  return NextResponse.redirect(`${requestUrl.origin}/auth/error`)
 }

@@ -22,12 +22,7 @@ import {
   FormErrorMessage,
 } from '@chakra-ui/react'
 
-const SignupPage = () => {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const toast = useToast()
-  const [isLoading, setIsLoading] = useState(false)
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+function SignupPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -35,19 +30,17 @@ const SignupPage = () => {
     name: '',
     phoneNumber: '',
   })
+  const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [passwordError, setPasswordError] = useState('')
-
-  const bgColor = useColorModeValue('white', 'gray.800')
-  const textColor = useColorModeValue('gray.600', 'gray.200')
-  const borderColor = useColorModeValue('gray.200', 'gray.600')
-
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const toast = useToast()
   const planType = searchParams.get('plan') || 'single_user'
 
-  const priceMapping = {
-    single_user: 'price_1Qh2SzCXsI8HJmkTjmfrGRcl',
-    team: 'price_1Qh2VLCXsI8HJmkTlYgczg6W',
-    corporate: 'price_1Qh2XjCXsI8HJmkTASiB8nZz',
-  }
+  const textColor = useColorModeValue('gray.700', 'gray.200')
+  const bgColor = useColorModeValue('white', 'gray.800')
+  const borderColor = useColorModeValue('gray.200', 'gray.600')
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -55,10 +48,11 @@ const SignupPage = () => {
   )
 
   const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
   }
 
   const handleGoogleSignup = async () => {
@@ -71,87 +65,54 @@ const SignupPage = () => {
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
-            plan: planType
-          },
-        },
+          }
+        }
       })
       if (error) throw error
     } catch (error) {
       toast({
-        title: 'Signup failed',
+        title: 'Error',
         description: error.message,
         status: 'error',
-        duration: 5000,
+        duration: 5000
       })
     } finally {
       setIsGoogleLoading(false)
     }
   }
 
-  const handleSignup = async (e) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setPasswordError('')
-
-    if (formData.password !== formData.confirmPassword) {
-      setPasswordError('Passwords do not match')
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      const { data: { user }, error } = await supabase.auth.signUp({
+ const handleSignup = async (e) => {
+  e.preventDefault()
+  setIsLoading(true)
+  
+  try {
+    const response = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            name: formData.name,
-            phoneNumber: formData.phoneNumber,
-            subscription_tier: planType,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        },
+        name: formData.name,
+        phoneNumber: formData.phoneNumber,
+        planType
       })
+    })
 
-      if (error) throw error
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
 
-      if (user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: formData.email,
-            full_name: formData.name,
-            phone_number: formData.phoneNumber,
-            subscription_tier: planType,
-            subscription_status: 'trialing',
-            created_at: new Date().toISOString(),
-            stripe_customer_id: null,
-            subscription_price_id: priceMapping[planType]
-          })
-
-        if (profileError) throw profileError
-
-        toast({
-          title: 'Account created successfully',
-          description: 'Redirecting to payment...',
-          status: 'success',
-          duration: 3000,
-        })
-
-        router.push(`/checkout?session_id=${user.id}&tier=${planType}`)
-      }
-    } catch (error) {
-      toast({
-        title: 'Signup failed',
-        description: error.message,
-        status: 'error',
-        duration: 5000,
-      })
-    } finally {
-      setIsLoading(false)
-    }
+    router.push(`/checkout?session_id=${data.user.id}&tier=${planType}`)
+  } catch (error) {
+    toast({
+      title: 'Signup failed',
+      description: error.message,
+      status: 'error',
+      duration: 5000
+    })
+  } finally {
+    setIsLoading(false)
   }
+}
 
   return (
     <Container maxW="lg" py={12}>
