@@ -8,37 +8,26 @@ export async function GET(request: Request) {
   
   if (code) {
     const supabase = createRouteHandlerClient({ cookies })
-    const { data: { user }, error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: { user }, error: authError } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (authError) {
+      return NextResponse.redirect(
+        `${requestUrl.origin}/auth/error?error=${authError.name}&error_description=${encodeURIComponent(authError.message)}`
+      )
+    }
 
     if (user) {
-      // Ensure profile exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select()
+      const { data: userData } = await supabase
+        .from('users')
+        .select('subscription_status, subscription_tier')
         .eq('id', user.id)
         .single()
 
-      if (!existingProfile) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: user.email,
-            full_name: user.user_metadata.full_name,
-            phone_number: user.user_metadata.phone_number,
-            subscription_tier: user.user_metadata.subscription_tier || 'single_user',
-            subscription_status: 'trialing',
-            created_at: new Date().toISOString()
-          })
-
-        if (profileError) {
-          return NextResponse.redirect(
-            `${requestUrl.origin}/auth/error?message=${encodeURIComponent(profileError.message)}`
-          )
-        }
+      if (userData?.subscription_status === 'active') {
+        return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
       }
-
-      return NextResponse.redirect(`${requestUrl.origin}/checkout?session_id=${user.id}`)
+      
+      return NextResponse.redirect(`${requestUrl.origin}/checkout?session_id=${user.id}&tier=${userData?.subscription_tier || 'single_user'}`)
     }
   }
 

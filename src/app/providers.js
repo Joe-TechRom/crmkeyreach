@@ -4,7 +4,7 @@ import { ChakraProvider, ColorModeScript, CSSReset } from '@chakra-ui/react'
 import { extendTheme, GlobalStyle } from '@chakra-ui/react'
 import { customTheme } from '@/styles/theme'
 import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '@/lib/supabaseClient' // Import from centralized client
+import { supabaseClient } from '@/lib/supabaseClient' // Import from centralized client
 
 // Enhanced theme configuration
 const theme = extendTheme({
@@ -37,24 +37,24 @@ const theme = extendTheme({
 // Page transition variants
 const pageTransition = {
   initial: { opacity: 0, y: 20 },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     transition: {
       duration: 0.4,
       ease: [0.25, 0.1, 0.25, 1],
-    }
+    },
   },
-  exit: { 
+  exit: {
     opacity: 0,
     y: -20,
     transition: {
       duration: 0.3,
-    }
-  }
+    },
+  },
 }
 
-export function Providers({ children }) {
+export function Providers({ children, supabase }) {
   return (
     <>
       <ColorModeScript initialColorMode={theme.config.initialColorMode} />
@@ -67,9 +67,9 @@ export function Providers({ children }) {
             animate="animate"
             exit="exit"
             variants={pageTransition}
-            style={{ 
+            style={{
               width: '100%',
-              zIndex: 1 
+              zIndex: 1,
             }}
           >
             {children}
@@ -79,5 +79,3 @@ export function Providers({ children }) {
     </>
   )
 }
-
-export { supabase }
