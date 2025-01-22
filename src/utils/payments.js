@@ -1,42 +1,41 @@
-import { loadStripe } from '@stripe/stripe-js';
-
-let stripePromise = null;
-
 const PRICE_IDS = {
-  team: {
-    monthly: 'price_1Qh2VLCXsI8HJmkTlYgczg6W',
-    yearly: 'price_1Qh2VkCXsI8HJmkTRBBLd0dv'
-  },
   single_user: {
     monthly: 'price_1Qh2SzCXsI8HJmkTjmfrGRcl',
-    yearly: 'price_1Qh2ThCXsI8HJmkT14vc4M6j'
+    yearly: 'price_1Qh2ThCXsI8HJmkT14vc4M6j',
+  },
+  team: {
+    monthly: 'price_1Qh2VLCXsI8HJmkTlYgczg6W',
+    yearly: 'price_1Qh2VkCXsI8HJmkTRBBLd0dv',
+    additionalUserMonthly: 'price_1Qh2WKCXsI8HJmkTa5KXjIic',
+    additionalUserYearly: 'price_1Qi1WDCXsI8HJmkTdGwrnyHE',
   },
   corporate: {
     monthly: 'price_1Qh2XjCXsI8HJmkTASiB8nZz',
-    yearly: 'price_1Qh2Y2CXsI8HJmkTYmIxLnmB'
-  }
+    yearly: 'price_1Qh2Y2CXsI8HJmkTYmIxLnmB',
+    additionalUserMonthly: 'price_1Qi1a7CXsI8HJmkTcnoDrCzr',
+    additionalUserYearly: 'price_1QfpfCCXsI8HJmkTuzytJvFP',
+  },
 };
 
-const getStripe = () => {
-  if (!stripePromise) {
-    stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
-  }
-  return stripePromise;
-};
-
-export async function createCheckoutSession(planId, isYearly = false) {
+export async function createCheckoutSession(planId, isYearly = false, additionalUsers = 0) {
   try {
-    const stripe = await getStripe();
-    
     // Get the correct price ID based on plan and billing interval
     const plan = PRICE_IDS[planId];
     const billingType = isYearly ? 'yearly' : 'monthly';
-    const priceId = plan[billingType];
+    let priceId = plan[billingType];
+
+    // Handle additional users
+    let additionalUserPriceId = null;
+    if (additionalUsers > 0 && plan.additionalUserMonthly) {
+      additionalUserPriceId = isYearly ? plan.additionalUserYearly : plan.additionalUserMonthly;
+    }
 
     console.log('Checkout Details:', {
       planId,
       billingType,
-      priceId
+      priceId,
+      additionalUsers,
+      additionalUserPriceId,
     });
 
     const response = await fetch('/api/create-checkout-session', {
@@ -46,8 +45,8 @@ export async function createCheckoutSession(planId, isYearly = false) {
       },
       body: JSON.stringify({
         priceId,
-        planId,
-        billingType
+        additionalUserPriceId,
+        additionalUsers,
       }),
     });
 
@@ -57,10 +56,7 @@ export async function createCheckoutSession(planId, isYearly = false) {
       throw new Error(data.message || 'API request failed');
     }
 
-    return stripe.redirectToCheckout({
-      sessionId: data.sessionId
-    });
-
+    return data; // Return the data object containing the url
   } catch (error) {
     console.error('Checkout error:', error);
     throw error;

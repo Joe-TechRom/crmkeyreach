@@ -1,48 +1,45 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import supabase from '@/lib/supabaseClient'; // Import client-side client
 
 export default function AuthCallback() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const error = searchParams.get('error')
-  const error_description = searchParams.get('error_description')
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+  const error_description = searchParams.get('error_description');
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
-
     const handleCallback = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (error) throw error
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
+        if (error) throw error;
         if (session) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('subscription_status, subscription_tier')
             .eq('id', session.user.id)
-            .single()
+            .single();
 
           if (profile?.subscription_status === 'active') {
-            router.push('/dashboard')
+            router.push('/dashboard');
           } else {
-            router.push(`/checkout?session_id=${session.user.id}`)
+            router.push(`/checkout?session_id=${session.user.id}`);
           }
         }
       } catch (error) {
-        console.error('Error:', error)
-        router.push('/auth/signin')
+        console.error('Error:', error);
+        router.push('/auth/signin');
       }
-    }
+    };
 
-    handleCallback()
-  }, [])
+    handleCallback();
+  }, [router]);
 
   if (error) {
     return (
@@ -51,12 +48,12 @@ export default function AuthCallback() {
           Error: {error_description}
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="animate-pulse">Finalizing your login...</div>
     </div>
-  )
+  );
 }

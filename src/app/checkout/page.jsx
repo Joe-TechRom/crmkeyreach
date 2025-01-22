@@ -26,8 +26,8 @@ import {
 } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { MdStar, MdStarBorder } from 'react-icons/md';
-import { createBrowserClient } from '@supabase/ssr';
-import { createCheckoutSession } from '@/utils/payments'; // Corrected import path
+import supabase from '@/lib/supabaseClient';
+import { createCheckoutSession } from '@/utils/payments';
 
 const PricingCard = ({
   plan,
@@ -146,26 +146,31 @@ export default function CheckoutPage() {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [additionalUsers, setAdditionalUsers] = useState({});
   const [userId, setUserId] = useState(null);
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  const [session, setSession] = useState(null);
 
   useEffect(() => {
     const checkAuth = async () => {
       setIsLoadingAuth(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { session: supabaseSession }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('Error fetching session:', error);
         router.push('/auth');
-      } else {
-        setUserId(session.user.id);
+        return;
       }
+
+      if (!supabaseSession) {
+        router.push('/auth');
+        return;
+      }
+
+      setSession(supabaseSession);
+      setUserId(supabaseSession.user.id);
       setIsLoadingAuth(false);
     };
+
     checkAuth();
-  }, [router, supabase]);
+  }, [router]);
 
   const handlePlanSelection = async (plan) => {
     if (isLoadingAuth) {
@@ -178,7 +183,8 @@ export default function CheckoutPage() {
       });
       return;
     }
-    if (!userId) {
+
+    if (!session) {
       toast({
         title: 'Not Authenticated',
         description: 'Please login to continue',
@@ -189,9 +195,19 @@ export default function CheckoutPage() {
       router.push('/auth');
       return;
     }
+
     try {
       setIsLoading(true);
-      await createCheckoutSession(plan.id);
+      const checkoutSession = await createCheckoutSession(
+        plan.id,
+        isYearly,
+        additionalUsers[plan.name] || 0
+      );
+      if (checkoutSession?.url) {
+        window.location.href = checkoutSession.url;
+      } else {
+        throw new Error('Invalid checkout session response');
+      }
     } catch (error) {
       toast({
         title: 'Error',

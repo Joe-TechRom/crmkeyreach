@@ -158,6 +158,7 @@ function PricingPage() {
       borderWidth: '1px',
       borderColor: useColorModeValue('gray.200', 'whiteAlpha.100'),
     };
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -291,6 +292,7 @@ function PricingPage() {
       borderWidth: '1px',
       borderColor: useColorModeValue('gray.200', 'whiteAlpha.100'),
     };
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -360,6 +362,7 @@ function PricingPage() {
               Streamline your real estate business with KeyReach CRM.
             </MotionText>
           </Stack>
+
           <Stack spacing={12}>
             <Stack textAlign="center" spacing={4}>
               <Heading size="2xl" color={textColor}>
@@ -383,6 +386,7 @@ function PricingPage() {
               ))}
             </SimpleGrid>
           </Stack>
+
           <Stack spacing={12}>
             <Stack textAlign="center" spacing={4}>
               <Heading size="2xl" color={textColor}>
@@ -398,7 +402,6 @@ function PricingPage() {
                 <Text>Monthly</Text>
                 <Switch
                   size="lg"
-                  colorScheme="blue"
                   colorScheme="blue"
                   isChecked={isYearly}
                   onChange={() => setIsYearly(!isYearly)}
@@ -419,24 +422,24 @@ function PricingPage() {
               spacing={{ base: 8, lg: 12 }}
               w="full"
             >
-              {pricingPlans.map((plan, index) => {
-                const [monthlyPrice, yearlyPrice] = calculatePrice(plan.price)
+              {pricingPlans.map((plan) => {
+                const [monthlyPrice, yearlyPrice] = calculatePrice(plan.price);
                 return (
                   <PricingCard
-                    key={plan.name}
+                    key={plan.id}
                     plan={plan}
                     isYearly={isYearly}
                     monthlyPrice={monthlyPrice}
                     yearlyPrice={yearlyPrice}
                     isPopular={plan.popular}
                   />
-                )
+                );
               })}
             </SimpleGrid>
             <MotionBox
               initial={{ opacity: 0, y: 20, scale: 1 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              whileHover={{ scale: 1.05, boxShadow: "0 4px 10px rgba(0,0,0,0.2)" }}
+              whileHover={{ scale: 1.05, boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
               style={{ display: 'flex', justifyContent: 'center' }}
@@ -452,6 +455,7 @@ function PricingPage() {
               />
             </MotionBox>
           </Stack>
+
           <Box
             as={motion.div}
             initial={{ opacity: 0, y: 20 }}

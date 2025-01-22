@@ -1,5 +1,4 @@
-
-import { supabase } from '@/lib/supabaseClient';
+import supabase from '@/lib/supabaseClient';
 
 /**
  * Creates a new subscription record in the database.
@@ -12,17 +11,14 @@ export async function createSubscription(stripeSubscriptionId, otherSubscription
   try {
     // 1. Get the current user
     const { data: user, error: userError } = await supabase.auth.getUser();
-
     if (userError) {
       console.error("Error getting user:", userError);
       return null; // Return null to indicate failure
     }
-
     if (!user) {
       console.error("No user found");
       return null; // Return null to indicate failure
     }
-
     // 2. Insert subscription data with the user ID
     const { data: subscriptionData, error: subscriptionError } = await supabase
       .from('subscriptions')
@@ -34,12 +30,10 @@ export async function createSubscription(stripeSubscriptionId, otherSubscription
       })
       .select()
       .single();
-
     if (subscriptionError) {
       console.error("Error inserting subscription:", subscriptionError);
       return null; // Return null to indicate failure
     }
-
     console.log("Subscription created:", subscriptionData);
     return subscriptionData; // Return the created subscription data
   } catch (error) {

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createBrowserClient } from '@supabase/ssr';
 import {
   Box,
   Flex,
@@ -26,7 +25,8 @@ import {
 import { HamburgerIcon, CloseIcon } from '@chakra-ui/icons';
 import { keyframes } from '@emotion/react';
 import { redirectDashboard } from '@/lib/utils/dashboard';
-import { useUser } from '@/lib/hooks/useUser';
+import useUser from '@/lib/hooks/useUser';
+import supabase from '@/lib/supabaseClient'; // Import Supabase client
 
 const shimmer = keyframes`
   0% { background-position: -200% center; }
@@ -38,7 +38,8 @@ const Navbar = () => {
   const router = useRouter();
   const { isOpen, onToggle } = useDisclosure();
   const [scrolled, setScrolled] = useState(false);
-  const { user, isAuthenticated, loading: userLoading } = useUser();
+  const { user, isLoading, signOut } = useUser(); // Corrected destructuring
+  const isAuthenticated = !!user; // Derive isAuthenticated from user object
 
   const navItems = [
     { name: 'Home', path: '/' },
@@ -56,13 +57,8 @@ const Navbar = () => {
     },
   };
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut(); // Use signOut from useUser
     router.push('/');
   };
 
@@ -134,7 +130,6 @@ const Navbar = () => {
                 </Box>
               </Link>
             </motion.div>
-
             <Flex display={{ base: 'none', md: 'flex' }} align="center">
               <Stack direction={'row'} spacing={8}>
                 {navItems.map((item) => (
@@ -170,9 +165,8 @@ const Navbar = () => {
                   </motion.div>
                 ))}
               </Stack>
-
               <Stack direction="row" spacing={4} ml={8}>
-                {userLoading ? (
+                {isLoading ? (
                   <Text>Loading...</Text>
                 ) : isAuthenticated ? (
                   <Menu>
@@ -186,11 +180,11 @@ const Navbar = () => {
                       <HStack>
                         <Avatar
                           size={'sm'}
-                          src={user?.user_metadata?.avatar_url}
-                          name={user?.user_metadata?.full_name}
+                          src={user?.firstName || user?.email ? null : user?.user_metadata?.avatar_url}
+                          name={user?.firstName || user?.email || user?.user_metadata?.full_name}
                         />
                         <Text display={{ base: 'none', md: 'block' }} color={useColorModeValue('gray.700', 'gray.200')}>
-                          {user?.user_metadata?.full_name || 'User'}
+                          {user?.firstName || user?.email || user?.user_metadata?.full_name || 'User'}
                         </Text>
                       </HStack>
                     </MenuButton>
@@ -244,7 +238,6 @@ const Navbar = () => {
                 )}
               </Stack>
             </Flex>
-
             <IconButton
               display={{ base: 'flex', md: 'none' }}
               onClick={onToggle}
@@ -254,7 +247,6 @@ const Navbar = () => {
               color={colors.orange.main}
             />
           </Flex>
-
           <AnimatePresence>
             {isOpen && (
               <motion.div

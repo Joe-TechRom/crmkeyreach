@@ -1,10 +1,11 @@
-'use client'
-import { motion, useScroll, useSpring } from 'framer-motion'
-import dynamic from 'next/dynamic'
-import { Box } from '@chakra-ui/react'
-import { createBrowserClient } from '@supabase/ssr'
-import { useEffect, useState } from 'react'
-import { keyframes } from '@emotion/react'
+'use client';
+
+import { motion, useScroll, useSpring } from 'framer-motion';
+import dynamic from 'next/dynamic';
+import { Box } from '@chakra-ui/react';
+import { createBrowserClient } from '@supabase/ssr';
+import { useEffect, useState } from 'react';
+import { keyframes } from '@emotion/react';
 
 const components = {
   Hero: dynamic(() => import('@/components/home/Hero')),
@@ -13,8 +14,8 @@ const components = {
   Pricing: dynamic(() => import('@/components/home/Pricing')),
   Overview: dynamic(() => import('@/components/home/Overview')),
   Newsletter: dynamic(() => import('@/components/home/Newsletter')),
-  Contact: dynamic(() => import('@/components/home/Contact'))
-}
+  Contact: dynamic(() => import('@/components/home/Contact')),
+};
 
 const gradientMove = keyframes`
   0% { transform: translate(0%, 0%) rotate(0deg); }
@@ -22,18 +23,18 @@ const gradientMove = keyframes`
   50% { transform: translate(0%, 40%) rotate(180deg); }
   75% { transform: translate(-20%, 20%) rotate(270deg); }
   100% { transform: translate(0%, 0%) rotate(360deg); }
-`
+`;
 
 const shine = keyframes`
   0% { background-position: -200% center; }
   100% { background-position: 200% center; }
-`
+`;
 
 const sectionVariants = {
-  hidden: { 
-    opacity: 0, 
+  hidden: {
+    opacity: 0,
     y: 20,
-    scale: 0.98
+    scale: 0.98,
   },
   visible: {
     opacity: 1,
@@ -41,46 +42,50 @@ const sectionVariants = {
     scale: 1,
     transition: {
       duration: 0.6,
-      ease: [0.25, 0.1, 0.25, 1]
-    }
-  }
-}
+      ease: [0.25, 0.1, 0.25, 1],
+    },
+  },
+};
 
 const gradientColors = {
   primary: '#FF6B2C',
   secondary: '#FF9A5C',
   accent1: '#FFB088',
-  accent2: '#FFC7A8'
-}
+  accent2: '#FFC7A8',
+};
 
 export default function Home() {
-  const [session, setSession] = useState(null)
-  const { scrollYProgress } = useScroll()
+  const [session, setSession] = useState(null);
+  const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
-    restDelta: 0.001
-  })
+    restDelta: 0.001,
+  });
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  );
 
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      setSession(currentSession)
-    }
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+      setSession(currentSession);
+    };
 
-    getSession()
+    getSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
 
-    return () => subscription.unsubscribe()
-  }, [supabase])
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   return (
     <Box as="div" margin={0} padding={0} overflow="hidden">
@@ -95,27 +100,26 @@ export default function Home() {
           background: `linear-gradient(90deg, ${gradientColors.primary}, ${gradientColors.secondary})`,
           transformOrigin: '0%',
           zIndex: 100,
-          boxShadow: '0 0 20px rgba(255, 107, 44, 0.3)'
+          boxShadow: '0 0 20px rgba(255, 107, 44, 0.3)',
         }}
       />
-
       <motion.main
         initial="hidden"
         animate="visible"
         className="relative w-full overflow-hidden"
-        style={{ 
-          margin: 0, 
+        style={{
+          margin: 0,
           padding: 0,
           minHeight: '100vh',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
         variants={{
           visible: {
             transition: {
-              staggerChildren: 0.2
-            }
-          }
+              staggerChildren: 0.2,
+            },
+          },
         }}
       >
         <Box
@@ -135,7 +139,7 @@ export default function Home() {
             filter="blur(80px)"
             animation={`${gradientMove} 25s linear infinite`}
           />
-          
+
           <Box
             position="absolute"
             top="40%"
@@ -146,7 +150,7 @@ export default function Home() {
             filter="blur(80px)"
             animation={`${gradientMove} 30s linear infinite reverse`}
           />
-          
+
           <Box
             position="absolute"
             bottom="-10%"
@@ -157,7 +161,7 @@ export default function Home() {
             filter="blur(90px)"
             animation={`${gradientMove} 35s linear infinite`}
           />
-          
+
           <Box
             position="absolute"
             top="30%"
@@ -169,8 +173,7 @@ export default function Home() {
             animation={`${gradientMove} 40s linear infinite reverse`}
           />
         </Box>
-
-        <Box 
+        <Box
           display="flex"
           flexDirection="column"
           gap={0}
@@ -182,9 +185,9 @@ export default function Home() {
             <motion.section
               key={name}
               variants={sectionVariants}
-              viewport={{ 
+              viewport={{
                 once: true,
-                margin: "-5%"
+                margin: '-5%',
               }}
               style={{
                 width: '100%',
@@ -192,12 +195,16 @@ export default function Home() {
                 padding: 0,
                 position: 'relative',
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
               }}
               className={`
                 relative w-full
                 ${name === 'Hero' ? 'min-h-screen' : ''}
-                ${name !== 'Hero' && name !== 'Newsletter' ? 'py-20 md:py-32' : ''}
+                ${
+                  name !== 'Hero' && name !== 'Newsletter'
+                    ? 'py-20 md:py-32'
+                    : ''
+                }
                 ${name === 'Newsletter' ? 'py-16' : ''}
               `}
             >
@@ -207,5 +214,5 @@ export default function Home() {
         </Box>
       </motion.main>
     </Box>
-  )
+  );
 }

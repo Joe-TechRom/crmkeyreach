@@ -1,44 +1,51 @@
-'use client'
+'use client';
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react';
 import {
-  Box, Container, Stack, Heading, Text, Button, Textarea, 
-  Avatar, Flex, useColorModeValue, Image, IconButton,
-  Input, useToast
-} from '@chakra-ui/react'
-import { motion } from 'framer-motion'
-import { FaFacebook, FaHeart, FaComment, FaShare, FaImage } from 'react-icons/fa'
-import { createClient } from '@supabase/supabase-js'
-import { signInWithFacebook, getCurrentUser } from '@/lib/supabase-auth'
-import PostCreator from './PostCreator'
-import ConnectButton from './ConnectButton'
-import Engagement from './Engagement'
-import Discussion from './Discussion'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+  Box,
+  Container,
+  Stack,
+  Heading,
+  Text,
+  Button,
+  Textarea,
+  Avatar,
+  Flex,
+  useColorModeValue,
+  Image,
+  IconButton,
+  Input,
+  useToast,
+} from '@chakra-ui/react';
+import { motion } from 'framer-motion';
+import { FaFacebook, FaHeart, FaComment, FaShare, FaImage } from 'react-icons/fa';
+import supabase from '@/lib/supabaseClient'; // Import client-side client
+import { signInWithFacebook, getCurrentUser } from '@/lib/supabase-auth';
+import PostCreator from './PostCreator';
+import ConnectButton from './ConnectButton';
+import Engagement from './Engagement';
+import Discussion from './Discussion';
 
 const COMMUNITY_DATA = {
-  name: "KeyReach Real Estate Community",
-  coverImage: "/images/real-estate-cover.jpg",
-  profileImage: "/images/keyreach-logo.png",
-  description: "A thriving community of real estate professionals sharing insights and opportunities",
-  members: "2.5K members",
-  posts: "150+ posts per day"
-}
+  name: 'KeyReach Real Estate Community',
+  coverImage: '/images/real-estate-cover.jpg',
+  profileImage: '/images/keyreach-logo.png',
+  description:
+    'A thriving community of real estate professionals sharing insights and opportunities',
+  members: '2.5K members',
+  posts: '150+ posts per day',
+};
 
 const Post = ({ post }) => {
-  const [isLiked, setIsLiked] = useState(false)
-  const [showComments, setShowComments] = useState(false)
-  const [newComment, setNewComment] = useState('')
-  const bgColor = useColorModeValue('white', 'gray.800')
-  const textColor = useColorModeValue('gray.600', 'gray.300')
+  const [isLiked, setIsLiked] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.600', 'gray.300');
 
   const handleLike = async () => {
-    setIsLiked(!isLiked)
-  }
+    setIsLiked(!isLiked);
+  };
 
   return (
     <Box
@@ -60,25 +67,24 @@ const Post = ({ post }) => {
           </Text>
         </Box>
       </Flex>
-
       <Text mb={4}>{post.content}</Text>
-
       {post.image_url && (
         <Image
-  src={image}
-  alt={title}
-  fill
-  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-  priority={index === 0} // Add priority only to the first image
-  style={{ objectFit: 'cover' }}
-/>
+          src={post.image_url}
+          alt="Post Image"
+          borderRadius="md"
+          mb={4}
+          objectFit="cover"
+          width="100%"
+          height="auto"
+          maxHeight="400px"
+        />
       )}
-
       <Flex justify="space-between">
         <IconButton
           icon={<FaHeart />}
           variant="ghost"
-          colorScheme={isLiked ? "red" : "gray"}
+          colorScheme={isLiked ? 'red' : 'gray'}
           aria-label="Like"
           onClick={handleLike}
         />
@@ -96,7 +102,6 @@ const Post = ({ post }) => {
           aria-label="Share"
         />
       </Flex>
-
       {showComments && (
         <Box mt={4}>
           <Input
@@ -111,126 +116,126 @@ const Post = ({ post }) => {
         </Box>
       )}
     </Box>
-  )
-}
+  );
+};
 
 const CommunityPage = () => {
-  const [posts, setPosts] = useState([])
-  const [newPost, setNewPost] = useState('')
-  const [user, setUser] = useState(null)
-  const [image, setImage] = useState(null)
-  const [post, setPost] = useState({})
-  const fileInputRef = useRef(null)
-  const toast = useToast()
-  
-  const bgColor = useColorModeValue('white', 'gray.800')
-  const textColor = useColorModeValue('gray.600', 'gray.300')
+  const [posts, setPosts] = useState([]);
+  const [newPost, setNewPost] = useState('');
+  const [user, setUser] = useState(null);
+  const [image, setImage] = useState(null);
+  const [post, setPost] = useState({});
+  const fileInputRef = useRef(null);
+  const toast = useToast();
+
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.600', 'gray.300');
 
   useEffect(() => {
-    fetchPosts()
-    setupRealtime()
-    checkUser()
-  }, [])
+    fetchPosts();
+    setupRealtime();
+    checkUser();
+  }, []);
 
   const checkUser = async () => {
-    const { user } = await getCurrentUser()
-    setUser(user)
-  }
+    const { user } = await getCurrentUser();
+    setUser(user);
+  };
 
   const fetchPosts = async () => {
     const { data, error } = await supabase
       .from('posts')
       .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (data) setPosts(data)
-  }
+      .order('created_at', { ascending: false });
+
+    if (data) setPosts(data);
+  };
 
   const setupRealtime = () => {
-    const channel = supabase
+    supabase
       .channel('public:posts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, payload => {
-        fetchPosts()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+        fetchPosts();
       })
-      .subscribe()
-  }
+      .subscribe();
+  };
 
   const handleLogin = async () => {
-    const { error } = await signInWithFacebook()
+    const { error } = await signInWithFacebook();
     if (!error) {
-      const { user } = await getCurrentUser()
-      setUser(user)
+      const { user } = await getCurrentUser();
+      setUser(user);
     }
-  }
+  };
 
   const handleImageUpload = async (file) => {
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Math.random()}.${fileExt}`
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
     const { data, error } = await supabase.storage
       .from('post-images')
-      .upload(fileName, file)
+      .upload(fileName, file);
 
     if (data) {
       const { publicURL } = supabase.storage
         .from('post-images')
-        .getPublicUrl(fileName)
-      return publicURL
+        .getPublicUrl(fileName);
+      return publicURL;
     }
-  }
+  };
 
   const createPost = async () => {
-    if (!newPost.trim() && !image) return
+    if (!newPost.trim() && !image) return;
 
     try {
-      let imageUrl = null
+      let imageUrl = null;
       if (image) {
-        imageUrl = await handleImageUpload(image)
+        imageUrl = await handleImageUpload(image);
       }
 
-      const { data, error } = await supabase
-        .from('posts')
-        .insert([{
+      await supabase.from('posts').insert([
+        {
           content: newPost,
           image_url: imageUrl,
           user_id: user?.id,
           user_name: user?.user_metadata?.full_name,
-          user_avatar: user?.user_metadata?.avatar_url
-        }])
+          user_avatar: user?.user_metadata?.avatar_url,
+        },
+      ]);
 
-      setNewPost('')
-      setImage(null)
+      setNewPost('');
+      setImage(null);
       toast({
-        title: "Post created successfully!",
-        status: "success",
-        duration: 3000
-      })
+        title: 'Post created successfully!',
+        status: 'success',
+        duration: 3000,
+      });
     } catch (error) {
       toast({
-        title: "Error creating post",
-        status: "error",
-        duration: 3000
-      })
+        title: 'Error creating post',
+        status: 'error',
+        duration: 3000,
+      });
     }
-  }
+  };
 
   const handleJoinCommunity = async () => {
     if (!user) {
-      await handleLogin()
+      await handleLogin();
       toast({
-        title: "Welcome to KeyReach Community!",
-        description: "Start sharing and connecting with fellow professionals",
-        status: "success",
-        duration: 5000
-      })
+        title: 'Welcome to KeyReach Community!',
+        description: 'Start sharing and connecting with fellow professionals',
+        status: 'success',
+        duration: 5000,
+      });
     }
-  }
+  };
 
   return (
     <Box pt={{ base: 24, md: 32 }}>
       <Container maxW="6xl" py={20}>
         <Box mb={8}>
-          <Box 
-            h="300px" 
+          <Box
+            h="300px"
             position="relative"
             bgImage={COMMUNITY_DATA.coverImage}
             bgSize="cover"
@@ -247,14 +252,14 @@ const CommunityPage = () => {
               bgGradient="linear(to-t, blackAlpha.600, transparent)"
             />
           </Box>
-          
-          <Box 
-            bg={bgColor} 
-            rounded="xl" 
-            shadow="lg" 
-            mt="-75px" 
-            mx={4} 
-            position="relative" 
+
+          <Box
+            bg={bgColor}
+            rounded="xl"
+            shadow="lg"
+            mt="-75px"
+            mx={4}
+            position="relative"
             p={6}
           >
             <Flex align="flex-end" mb={6}>
@@ -270,27 +275,24 @@ const CommunityPage = () => {
                 objectFit="cover"
               />
               <Box flex={1}>
-                <Heading size="xl" mb={2}>{COMMUNITY_DATA.name}</Heading>
+                <Heading size="xl" mb={2}>
+                  {COMMUNITY_DATA.name}
+                </Heading>
                 <Text color="gray.600">{COMMUNITY_DATA.description}</Text>
               </Box>
             </Flex>
-            
+
             <Flex justify="space-between" align="center">
               <Stack direction="row" spacing={6}>
                 <Text fontWeight="bold">{COMMUNITY_DATA.members}</Text>
                 <Text fontWeight="bold">{COMMUNITY_DATA.posts}</Text>
               </Stack>
-              <Button 
-                colorScheme="blue" 
-                size="lg"
-                onClick={handleJoinCommunity}
-              >
+              <Button colorScheme="blue" size="lg" onClick={handleJoinCommunity}>
                 {user ? 'Joined' : 'Join Community'}
               </Button>
             </Flex>
-
             <Box mt={6}>
-              <PostCreator 
+              <PostCreator
                 newPost={newPost}
                 setNewPost={setNewPost}
                 fileInputRef={fileInputRef}
@@ -343,7 +345,6 @@ const CommunityPage = () => {
                   accept="image/*"
                 />
               </Box>
-
               {posts.map((post) => (
                 <Post key={post.id} post={post} />
               ))}
@@ -352,7 +353,7 @@ const CommunityPage = () => {
         </Stack>
       </Container>
     </Box>
-  )
-}
+  );
+};
 
-export default CommunityPage
+export default CommunityPage;

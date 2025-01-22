@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
+import supabase from '@/lib/supabaseClient'; // Import client-side client
 import {
   Container,
   Stack,
@@ -27,9 +27,8 @@ import {
 import { FcGoogle } from 'react-icons/fc';
 import { MdSync, MdDevices, MdSecurity, MdSpeed } from 'react-icons/md';
 import { motion } from 'framer-motion';
-import { useUser } from '@/lib/hooks/useUser';
+import useUser from '@/lib/hooks/useUser';
 import { redirectDashboard } from '@/lib/utils/dashboard';
-import { createSubscription } from '@/lib/utils/subscription'; // Import createSubscription
 
 const MotionBox = motion(Box);
 
@@ -41,10 +40,6 @@ const SignInContent = () => {
   const [password, setPassword] = useState('');
   const bgColor = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.600', 'gray.200');
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
   const { user, loading: userLoading } = useUser();
   const [redirecting, setRedirecting] = useState(false);
 
@@ -52,11 +47,9 @@ const SignInContent = () => {
     const handleRedirect = async () => {
       if (!userLoading && user) {
         setRedirecting(true);
-        // Check if the user has a subscription, if not, create one
         await redirectDashboard(user).finally(() => setRedirecting(false));
       }
     };
-
     handleRedirect();
   }, [user, userLoading]);
 
@@ -74,8 +67,7 @@ const SignInContent = () => {
         },
       });
       if (error) throw error;
-        // Redirect to checkout after successful signin
-        router.push('/checkout');
+      router.push('/checkout');
     } catch (error) {
       toast({
         title: 'Sign in failed',
@@ -97,8 +89,7 @@ const SignInContent = () => {
         password,
       });
       if (error) throw error;
-        // Redirect to checkout after successful signin
-        router.push('/checkout');
+      router.push('/checkout');
     } catch (error) {
       toast({
         title: 'Sign in failed',

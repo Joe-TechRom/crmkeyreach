@@ -73,7 +73,6 @@ export default function RootLayout({ children }) {
         <ColorModeScript type="cookie" initialColorMode={customTheme.config.initialColorMode} />
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
-
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
           <AuthProvider>
@@ -100,7 +99,7 @@ export default function RootLayout({ children }) {
                   bgGradient: "radial(circle at top right, purple.900, transparent 70%)"
                 }}
                 opacity="0.5"
-                style={{ transition: 'background 0.3s ease' }}
+                sx={{ transition: 'background 0.3s ease' }}
               />
               
               <Box 
@@ -113,7 +112,6 @@ export default function RootLayout({ children }) {
               >
                 {children}
               </Box>
-
               <Footer />
               
               <Box 

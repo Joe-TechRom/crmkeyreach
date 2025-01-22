@@ -1,42 +1,21 @@
-import { User } from '@supabase/supabase-js';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export async function getDashboardRoute(user: User | null): Promise<string> {
+export function getDashboardRoute(user) {
   if (!user) {
-    return '/signup';
+    return '/auth/signin';
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('subscription_tier')
-    .eq('user_id', user.id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching profile:', error);
-    return '/signup';
-  }
-
-  const tier = data?.subscription_tier;
-
-  if (tier === 'single_user') {
-    return '/dashboard/single-user';
-  } else if (tier === 'team') {
-    return '/dashboard/team';
-  } else if (tier === 'corporate') {
-    return '/dashboard/corporate';
-  } else {
-    return '/dashboard/free';
+  switch (user.tier) {
+    case 'single-user':
+      return '/dashboard/single-user';
+    case 'team':
+      return '/dashboard/team';
+    case 'corporate':
+      return '/dashboard/corporate';
+    default:
+      return '/dashboard/single-user';
   }
 }
 
-// Add the new redirectDashboard function that leverages your existing logic
-export async function redirectDashboard(user: User | null): Promise<string> {
-  const route = await getDashboardRoute(user);
-  return route;
+export function redirectDashboard(user, router) {
+  const route = getDashboardRoute(user);
+  router.push(route);
 }

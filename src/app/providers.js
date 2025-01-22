@@ -1,10 +1,10 @@
-'use client'
+'use client';
 
-import { ChakraProvider, ColorModeScript, CSSReset } from '@chakra-ui/react'
-import { extendTheme, GlobalStyle } from '@chakra-ui/react'
-import { customTheme } from '@/styles/theme'
-import { motion, AnimatePresence } from 'framer-motion'
-import { supabaseClient } from '@/lib/supabaseClient' // Import from centralized client
+import { ChakraProvider, ColorModeScript, CSSReset } from '@chakra-ui/react';
+import { extendTheme, GlobalStyle } from '@chakra-ui/react';
+import { customTheme } from '@/styles/theme';
+import { motion, AnimatePresence } from 'framer-motion';
+import { supabaseClient } from '@/lib/supabaseClient'; // Import from centralized client
 
 // Enhanced theme configuration
 const theme = extendTheme({
@@ -32,7 +32,7 @@ const theme = extendTheme({
     cssVarPrefix: 'keyreach',
     disableTransitionOnChange: false,
   },
-})
+});
 
 // Page transition variants
 const pageTransition = {
@@ -52,9 +52,9 @@ const pageTransition = {
       duration: 0.3,
     },
   },
-}
+};
 
-export function Providers({ children, supabase }) {
+export function Providers({ children }) {
   return (
     <>
       <ColorModeScript initialColorMode={theme.config.initialColorMode} />
@@ -77,5 +77,5 @@ export function Providers({ children, supabase }) {
         </AnimatePresence>
       </ChakraProvider>
     </>
-  )
+  );
 }
