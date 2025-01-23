@@ -1,7 +1,8 @@
+// src/app/checkout/page.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
   Container,
@@ -147,110 +148,75 @@ export default function CheckoutPage() {
   const [additionalUsers, setAdditionalUsers] = useState({});
   const [userId, setUserId] = useState(null);
   const [session, setSession] = useState(null);
+  const searchParams = useSearchParams();
+  const planType = searchParams.get('tier') || 'single_user';
 
   useEffect(() => {
     const checkAuth = async () => {
       setIsLoadingAuth(true);
       const { data: { session: supabaseSession }, error } = await supabase.auth.getSession();
-
       if (error) {
         console.error('Error fetching session:', error);
         router.push('/auth');
         return;
       }
-
       if (!supabaseSession) {
         router.push('/auth');
         return;
       }
-
       setSession(supabaseSession);
       setUserId(supabaseSession.user.id);
       setIsLoadingAuth(false);
     };
-
     checkAuth();
   }, [router]);
 
-const CheckoutPage = async ({ searchParams }) => {
-  const { session_id } = searchParams;
-  
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', session_id)
-    .single();
+const handlePlanSelection = async (plan) => {
+  if (!session || !userId) {
+    toast({
+      title: 'Authentication Required',
+      description: 'Please log in to continue',
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
+    router.push('/auth');
+    return;
+  }
 
-  // Create Stripe checkout
-  const stripeSession = await stripe.checkout.sessions.create({
-    customer_email: profile.email,
-    mode: 'subscription',
-    payment_method_types: ['card'],
-    line_items: [{
-      price: PRICE_IDS[profile.plan_type],
-      quantity: 1,
-    }],
-    success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/pricing`,
-    metadata: {
-      user_id: session_id,
-      plan_type: profile.plan_type
+  try {
+    setIsLoading(true);
+    // Log the exact values being passed
+    console.log({
+      planId: plan.id,
+      isYearly,
+      additionalUsers: additionalUsers[plan.name] || 0,
+      userId
+    });
+
+    const checkoutSession = await createCheckoutSession(
+      plan.id,        // This is your planId
+      isYearly,       // Boolean for yearly billing
+      additionalUsers[plan.name] || 0,
+      userId          // User ID from session
+    );
+
+    if (checkoutSession?.url) {
+      window.location.href = checkoutSession.url;
     }
-  });
-
-  return <RedirectToCheckout sessionId={stripeSession.id} />;
+  } catch (error) {
+    toast({
+      title: 'Checkout Error',
+      description: 'Unable to start checkout process',
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
+  } finally {
+    setIsLoading(false);
+  }
 };
 
-
-  const handlePlanSelection = async (plan) => {
-    if (isLoadingAuth) {
-      toast({
-        title: 'Please wait',
-        description: 'Authentication is in progress',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!session) {
-      toast({
-        title: 'Not Authenticated',
-        description: 'Please login to continue',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-      router.push('/auth');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const checkoutSession = await createCheckoutSession(
-        plan.id,
-        isYearly,
-        additionalUsers[plan.name] || 0
-      );
-      if (checkoutSession?.url) {
-        window.location.href = checkoutSession.url;
-      } else {
-        throw new Error('Invalid checkout session response');
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to process checkout',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleAdditionalUsersChange = (planName, value) => {
     setAdditionalUsers((prev) => ({ ...prev, [planName]: value }));

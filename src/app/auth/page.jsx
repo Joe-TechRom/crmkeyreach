@@ -20,6 +20,7 @@ import {
   IconButton,
   useToast,
   Flex,
+  FormErrorMessage, // Import FormErrorMessage
 } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { FiEye, FiEyeOff, FiMail, FiLock } from 'react-icons/fi';
@@ -33,29 +34,84 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState(''); // State for email error
+  const [passwordError, setPasswordError] = useState(''); // State for password error
 
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        router.push('/dashboard');
+        router.push('/dashboard'); // Or redirect to tier-specific dashboard
       }
     };
     checkAuth();
   }, [router]);
 
+  const validateEmail = (email) => {
+    // Basic email validation regex
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  };
+
   const handleSignIn = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
 
+    // Reset errors
+    setEmailError('');
+    setPasswordError('');
+
+    // Validate inputs
+    if (!email) {
+      setEmailError('Email is required');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setEmailError('Invalid email format');
+      return;
+    }
+
+    if (!password) {
+      setPasswordError('Password is required');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
-      router.push('/dashboard');
+      if (error) {
+        // Handle specific Supabase errors
+        if (error.message.includes('Invalid login credentials')) {
+          toast({
+            title: 'Error',
+            description: 'Invalid email or password',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        } else {
+          throw error; // Re-throw for generic error handling
+        }
+      } else {
+        // Redirect to the appropriate dashboard based on user's tier
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('subscription_tier')
+            .eq('id', session.user.id)
+            .single();
+
+          const tier = profile?.subscription_tier || 'single_user';
+          router.push(`/dashboard/${tier}`);
+        } else {
+          router.push('/dashboard'); // Fallback if session is somehow missing
+        }
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -124,7 +180,7 @@ export default function AuthPage() {
           >
             <form onSubmit={handleSignIn}>
               <VStack spacing={6}>
-                <FormControl isRequired>
+                <FormControl isRequired isInvalid={!!emailError}>
                   <FormLabel>Email</FormLabel>
                   <InputGroup>
                     <Input
@@ -134,9 +190,10 @@ export default function AuthPage() {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </InputGroup>
+                  {emailError && <FormErrorMessage>{emailError}</FormErrorMessage>}
                 </FormControl>
 
-                <FormControl isRequired>
+                <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel>Password</FormLabel>
                   <InputGroup>
                     <Input
@@ -154,6 +211,7 @@ export default function AuthPage() {
                       />
                     </InputRightElement>
                   </InputGroup>
+                  {passwordError && <FormErrorMessage>{passwordError}</FormErrorMessage>}
                 </FormControl>
 
                 <Button

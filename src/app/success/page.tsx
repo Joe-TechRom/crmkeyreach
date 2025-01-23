@@ -1,4 +1,5 @@
 // src/app/success/page.tsx
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,9 +8,23 @@ import { FiCheck, FiArrowRight, FiAward } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Box, VStack, Heading, Text, Spinner, Center, List, ListItem,
-  useToast, Button, useColorModeValue, HStack, Icon,
+  Box,
+  VStack,
+  Heading,
+  Text,
+  Spinner,
+  Center,
+  List,
+  ListItem,
+  useToast,
+  Button,
+  useColorModeValue,
+  HStack,
+  Icon,
 } from '@chakra-ui/react';
+import Stripe from 'stripe'; // Import Stripe
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY); // Initialize Stripe
 
 const MotionBox = motion(Box);
 const MotionVStack = motion(VStack);
@@ -49,7 +64,13 @@ interface SessionData {
   profile: {
     subscription_tier: string;
     stripe_customer_id: string;
-  }
+  };
+  metadata: {
+    userId: string;
+    planId: string;
+    billingCycle: string;
+    additionalUsers: string;
+  };
 }
 
 export default function SuccessPage() {
@@ -95,45 +116,127 @@ export default function SuccessPage() {
     async function verifySession() {
       if (!sessionId) return;
 
-      const maxAttempts = 15;
-      let attempts = 0;
+      try {
+        // 1. Retrieve the Checkout Session from Stripe
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-      const checkStatus = async () => {
-        try {
-          const response = await fetch(`/api/verify-session?session_id=${sessionId}`);
-          const data = await response.json();
-          console.log('Success Page Data:', data);
+        // 2. Verify the Payment Status
+        if (session.payment_status !== 'paid') {
+          console.error('Payment not successful for session:', sessionId);
+          toast({
+            title: 'Payment Failed',
+            description: 'Your payment was not successful. Please try again.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+            position: 'top',
+          });
+          setLoading(false);
+          return;
+        }
 
-          if (data.status === 'active' || data.status === 'trialing') {
-            setSessionData(data);
-            setLoading(false);
+        // 3. Extract Data from Session
+        const { metadata } = session;
+        const subscriptionId = session.subscription as string; // Type assertion
+        const customerId = session.customer as string; // Type assertion
+        const planId = metadata.planId;
+        const userId = metadata.userId;
+        const billingCycle = metadata.billingCycle;
+        const additionalUsers = metadata.additionalUsers;
+
+        // 4.  Construct Session Data (adjust as needed based on your database schema)
+        const sessionData: SessionData = {
+          plan: {
+            name: planId, // Or fetch from your plan configuration
+            interval: billingCycle,
+            amount: 0, // You might need to calculate this or fetch it
+          },
+          status: 'active', // Assuming payment is successful
+          customerId: customerId,
+          subscriptionId: subscriptionId,
+          profile: {
+            subscription_tier: planId, // Assuming planId maps to subscription tier
+            stripe_customer_id: customerId,
+          },
+          metadata: {
+            userId: userId,
+            planId: planId,
+            billingCycle: billingCycle,
+            additionalUsers: additionalUsers,
+          },
+        };
+
+        // 5.  Update Your Database (replace with your actual database logic)
+       try {
+  const dbResponse = await fetch('/api/update-subscription', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userId: metadata.userId,
+      planId: metadata.planId,
+      subscriptionId: subscriptionId,
+      customerId: customerId,
+      billingCycle: metadata.billingCycle,
+      additionalUsers: metadata.additionalUsers,
+    }),
+  });
+
+          if (!dbResponse.ok) {
+            console.error('Failed to update database:', dbResponse.statusText);
             toast({
-              title: '🎉 Subscription Activated!',
-              description: 'Welcome to your premium subscription',
-              status: 'success',
+              title: 'Error Updating Subscription',
+              description: 'There was an error updating your subscription. Please contact support.',
+              status: 'error',
               duration: 5000,
               isClosable: true,
               position: 'top',
             });
-          } else if (attempts < maxAttempts) {
-            attempts++;
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await checkStatus();
-          } else {
             setLoading(false);
+            return;
           }
-        } catch (error) {
-          if (attempts < maxAttempts) {
-            attempts++;
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await checkStatus();
-          } else {
-            setLoading(false);
-          }
-        }
-      };
 
-      checkStatus();
+          console.log('Database updated successfully');
+        } catch (dbError) {
+          console.error('Error updating database:', dbError);
+          toast({
+            title: 'Error Updating Subscription',
+            description: 'There was an error updating your subscription. Please contact support.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+            position: 'top',
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 6. Set Session Data and Stop Loading
+        setSessionData(sessionData);
+        setLoading(false);
+
+        // 7. Show Success Toast
+        toast({
+          title: '🎉 Subscription Activated!',
+          description: 'Welcome to your premium subscription',
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
+      } catch (error) {
+        console.error('Error verifying session:', error);
+        toast({
+          title: 'Error Verifying Session',
+          description: 'There was an error verifying your session. Please contact support.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
+        setLoading(false);
+      }
     }
 
     verifySession();
@@ -144,7 +247,10 @@ export default function SuccessPage() {
 
     const planDetails = [
       { label: 'Plan', value: sessionData.plan.name || 'Premium Plan' },
-      { label: 'Billing Cycle', value: sessionData.plan.interval === 'month' ? 'Monthly' : 'Yearly' },
+      {
+        label: 'Billing Cycle',
+        value: sessionData.plan.interval === 'month' ? 'Monthly' : 'Yearly',
+      },
       { label: 'Status', value: sessionData.status || 'Active' },
     ];
 
@@ -172,12 +278,32 @@ export default function SuccessPage() {
   };
 
   const handleGoToDashboard = () => {
-    if (sessionData?.profile?.subscription_tier === 'single_user') {
-      router.push('/dashboard');
-    } else if (sessionData?.profile?.subscription_tier === 'premium') {
-      router.push('/premium-dashboard');
-    } else {
+    if (!sessionData?.profile?.subscription_tier) {
+      console.warn(
+        'Subscription tier is not defined. Redirecting to pricing page.'
+      );
       router.push('/pricing');
+      return;
+    }
+
+    const tier = sessionData.profile.subscription_tier;
+
+    // Define a mapping of subscription tiers to dashboard routes
+    const dashboardRoutes: { [key: string]: string } = {
+      'single_user': '/dashboard/single-user',
+      team: '/dashboard/team',
+      corporate: '/dashboard/corporate',
+      // Add more tiers and their corresponding routes here
+    };
+
+    // Check if the tier exists in the mapping
+    if (dashboardRoutes[tier]) {
+      router.push(dashboardRoutes[tier]); // Redirect to the appropriate dashboard
+    } else {
+      console.warn(
+        `No dashboard route defined for tier: ${tier}. Redirecting to pricing page.`
+      );
+      router.push('/pricing'); // Redirect to pricing if tier is not defined
     }
   };
 
@@ -186,7 +312,13 @@ export default function SuccessPage() {
       <Center minH="100vh" bgGradient={gradientBg} p={4}>
         {loading ? (
           <VStack spacing={4}>
-            <Spinner size="xl" thickness="4px" speed="0.65s" emptyColor="gray.200" color={highlightColor} />
+            <Spinner
+              size="xl"
+              thickness="4px"
+              speed="0.65s"
+              emptyColor="gray.200"
+              color={highlightColor}
+            />
             <Text color={textColor} fontSize="lg" fontWeight="medium">
               Processing your subscription...
             </Text>
@@ -213,7 +345,6 @@ export default function SuccessPage() {
                 </Heading>
               </VStack>
             </MotionBox>
-
             {sessionData && (
               <MotionBox
                 variants={itemVariants}
@@ -237,9 +368,7 @@ export default function SuccessPage() {
                       Subscription Activated
                     </Text>
                   </HStack>
-
                   {renderPlanDetails()}
-
                   <HStack spacing={4} pt={4}>
                     <Button
                       as={motion.button}
@@ -251,7 +380,8 @@ export default function SuccessPage() {
                       onClick={handleGoToDashboard}
                       bgGradient="linear(to-r, blue.400, orange.400, purple.500)"
                       _hover={{
-                        bgGradient: "linear(to-r, blue.500, orange.500, purple.600)",
+                        bgGradient:
+                          'linear(to-r, blue.500, orange.500, purple.600)',
                       }}
                     >
                       Go to Dashboard

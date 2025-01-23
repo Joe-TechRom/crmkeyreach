@@ -1,7 +1,9 @@
+// src/app/signin/page.jsx
+
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import supabase from '@/lib/supabaseClient'; // Import client-side client
 import {
   Container,
@@ -42,6 +44,8 @@ const SignInContent = () => {
   const textColor = useColorModeValue('gray.600', 'gray.200');
   const { user, loading: userLoading } = useUser();
   const [redirecting, setRedirecting] = useState(false);
+  const searchParams = useSearchParams(); // Get search parameters
+  const planType = searchParams.get('plan') || 'single_user'; // Get plan type from URL
 
   useEffect(() => {
     const handleRedirect = async () => {
@@ -56,22 +60,35 @@ const SignInContent = () => {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log("Initiating Google signin with plan type:", planType); // ADDED LOGGING
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
+          redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
           },
-          scopes: 'email profile',
         },
       });
-      if (error) throw error;
-      router.push('/checkout');
+
+      if (error) {
+        console.error('Google signin error:', error);
+        toast({
+          title: 'Sign in failed',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+        });
+      } else {
+        console.log("Google signin initiated successfully."); // ADDED LOGGING
+      }
     } catch (error) {
+      console.error('Unexpected Google signin error:', error);
       toast({
         title: 'Sign in failed',
-        description: error.message,
+        description: 'An unexpected error occurred during Google signin.',
         status: 'error',
         duration: 5000,
       });
@@ -84,16 +101,45 @@ const SignInContent = () => {
     e.preventDefault();
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Signing in with email:", email, "and plan type:", planType); // ADDED LOGGING
+
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) throw error;
-      router.push('/checkout');
+
+      if (error) {
+        console.error('Email/Password signin error:', error);
+        toast({
+          title: 'Sign in failed',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+        });
+      } else {
+        console.log("Email/Password signin successful."); // ADDED LOGGING
+        // After successful sign-in, fetch user data and then redirect
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.error('Error fetching user data:', userError);
+          toast({
+            title: 'Sign in failed',
+            description: userError.message,
+            status: 'error',
+            duration: 5000,
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Redirect to callback with user info
+        router.push(`/auth/callback?code=dummy&tier=${planType}`);
+      }
     } catch (error) {
+      console.error('Unexpected email/password signin error:', error);
       toast({
         title: 'Sign in failed',
-        description: error.message,
+        description: 'An unexpected error occurred during email/password signin.',
         status: 'error',
         duration: 5000,
       });

@@ -1,6 +1,8 @@
+// src/app/signup/page.jsx
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FcGoogle } from 'react-icons/fc';
 import supabase from '@/lib/supabaseClient'; // Import client-side client
@@ -41,6 +43,15 @@ function SignupPage() {
   const toast = useToast();
   const planType = searchParams.get('plan') || 'single_user';
 
+  useEffect(() => {
+    // Password validation effect
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError('Passwords do not match');
+    } else {
+      setPasswordError('');
+    }
+  }, [formData.password, formData.confirmPassword]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -49,64 +60,98 @@ function SignupPage() {
     }));
   };
 
-const handleGoogleSignup = async () => {
-  setIsGoogleLoading(true);
-  try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
+  const handleGoogleSignup = async () => {
+    setIsGoogleLoading(true);
+    console.log("Initiating Google signup with plan type:", planType); // ADDED LOGGING
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
-        data: {
-          plan_type: planType // Pass plan type to trigger
-        }
-      },
-    });
-    if (error) throw error;
-  } catch (error) {
-    toast({
-      title: 'Error',
-      description: error.message,
-      status: 'error',
-    });
-  } finally {
-    setIsGoogleLoading(false);
-  }
-};
+      });
 
-const handleSignup = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
-
-  try {
-    const { error } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/checkout?tier=${planType}`
+      if (error) {
+        console.error('Google signup error:', error);
+        toast({
+          title: 'Error',
+          description: error.message,
+          status: 'error',
+        });
+      } else {
+        console.log("Google signup initiated successfully."); // ADDED LOGGING
       }
-    });
+    } catch (error) {
+      console.error('Unexpected Google signup error:', error);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred during Google signup.',
+        status: 'error',
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
-    if (error) throw error;
-    
-    router.push('/auth/verify-email');
-    
-  } catch (error) {
-    toast({
-      title: 'Signup failed',
-      description: error.message,
-      status: 'error',
-      duration: 5000,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  const handleSignup = async (e) => {
+    e.preventDefault();
 
+    if (passwordError) {
+      toast({
+        title: 'Signup failed',
+        description: 'Please correct the password errors.',
+        status: 'error',
+        duration: 5000,
+      });
+      return;
+    }
 
+    setIsLoading(true);
+    console.log("Signing up with email:", formData.email, "and plan type:", planType); // ADDED LOGGING
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
+          data: {
+            plan_type: planType, // Pass plan type as user metadata
+            full_name: formData.name, // Store full name
+            phone_number: formData.phoneNumber, // Store phone number
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Email/Password signup error:', error);
+        toast({
+          title: 'Signup failed',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+        });
+      } else {
+        console.log("Email/Password signup initiated successfully.  Check email for verification."); // ADDED LOGGING
+        router.push('/auth/verify-email'); // Redirect to verify email page
+      }
+    } catch (error) {
+      console.error('Unexpected email/password signup error:', error);
+      toast({
+        title: 'Signup failed',
+        description: 'An unexpected error occurred during signup.',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Container maxW="lg" py={12}>

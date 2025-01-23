@@ -1,3 +1,4 @@
+// middleware.js
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabaseClient'; // Import server-side client
@@ -12,7 +13,11 @@ export async function middleware(req) {
 
     if (sessionError) {
       console.error('Session error:', sessionError.message);
-      return NextResponse.redirect(new URL('/auth/signin', req.url));
+      // Redirect to signin only if there's an error AND the user is trying to access a protected route
+      if (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/billing')) {
+        return NextResponse.redirect(new URL('/auth/signin', req.url));
+      }
+      return res; // Let the request continue for public pages
     }
 
     // Protected routes handling

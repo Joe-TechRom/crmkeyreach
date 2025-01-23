@@ -20,6 +20,7 @@ export async function GET(req: Request) {
 
     const subscription = session.subscription as Stripe.Subscription;
     const tier = session.metadata?.tier || subscription.metadata?.tier || 'single_user';
+    const customerId = session.customer as string;
 
     // Fetch user profile from Supabase
     const { data: userData } = await supabase.auth.getUser();
@@ -37,9 +38,21 @@ export async function GET(req: Request) {
       }
     }
 
+    console.log('Verify Session Response:', {
+      status: subscription.status,
+      customerId,
+      subscriptionId: subscription.id,
+      plan: {
+        name: tier,
+        interval: subscription.items.data[0].plan.interval,
+        amount: subscription.items.data[0].plan.amount
+      },
+      profile
+    });
+
     return NextResponse.json({
       status: subscription.status,
-      customerId: session.customer,
+      customerId,
       subscriptionId: subscription.id,
       plan: {
         name: tier,

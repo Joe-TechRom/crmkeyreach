@@ -59,9 +59,10 @@ function PricingPage() {
   const cardBg = useColorModeValue('white', 'whiteAlpha.100');
   const textColor = useColorModeValue('neutral.800', 'whiteAlpha.900');
 
-  const handleStartTrial = async (planId) => {
-    router.push(`/auth/signup?plan=${planId}`);
-  };
+ const handleStartTrial = async (planId) => {
+  router.push(`/auth/signup?tier=${planId}`);
+};
+
 
   const calculatePrice = (monthlyPrice) => {
     if (isYearly) {
@@ -98,7 +99,7 @@ function PricingPage() {
     {
       name: 'Single User',
       price: 49.99,
-      id: 'basic',
+      id: 'single_user',
       features: [
         'All core CRM features',
         'Lead CRUD operations',
@@ -362,7 +363,6 @@ function PricingPage() {
               Streamline your real estate business with KeyReach CRM.
             </MotionText>
           </Stack>
-
           <Stack spacing={12}>
             <Stack textAlign="center" spacing={4}>
               <Heading size="2xl" color={textColor}>
@@ -386,7 +386,6 @@ function PricingPage() {
               ))}
             </SimpleGrid>
           </Stack>
-
           <Stack spacing={12}>
             <Stack textAlign="center" spacing={4}>
               <Heading size="2xl" color={textColor}>
@@ -455,7 +454,6 @@ function PricingPage() {
               />
             </MotionBox>
           </Stack>
-
           <Box
             as={motion.div}
             initial={{ opacity: 0, y: 20 }}

@@ -12,7 +12,7 @@ export const subscriptionPlans = {
       'Multi-platform posting',
       'Email integration',
       'Basic reporting',
-      'Social Media Integration'
+      'Social Media Integration',
     ],
   },
   team: {
@@ -29,7 +29,7 @@ export const subscriptionPlans = {
       'Advanced reporting',
       'API access',
       'Priority support',
-      '$10/month per additional user'
+      '$10/month per additional user',
     ],
   },
   corporate: {
@@ -47,7 +47,7 @@ export const subscriptionPlans = {
       'SLA guarantees',
       'Premium support 24/7',
       'Onboarding assistance',
-      '$7.99/month per additional user'
+      '$7.99/month per additional user',
     ],
-  }
+  },
 };

@@ -1,4 +1,5 @@
 // /utils/stripe.js
+
 import { loadStripe } from '@stripe/stripe-js';
 
 let stripePromise;
@@ -10,19 +11,18 @@ export const getStripe = () => {
   return stripePromise;
 };
 
-export const createCheckoutSession = async (priceId) => {
+export const createCheckoutSession = async (priceId, userId, planId, billingCycle, additionalUsers) => {
   try {
     const stripe = await getStripe();
-    
+
     // Make the API call to create checkout session
     const response = await fetch('/api/create-checkout-session', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ priceId }),
+      body: JSON.stringify({ priceId, userId, planId, billingCycle, additionalUsers }),
     });
-
     const data = await response.json();
 
     // Redirect to Stripe Checkout

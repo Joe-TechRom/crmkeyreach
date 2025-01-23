@@ -1,3 +1,4 @@
+// src/utils/payments.js
 const PRICE_IDS = {
   single_user: {
     monthly: 'price_1Qh2SzCXsI8HJmkTjmfrGRcl',
@@ -17,7 +18,7 @@ const PRICE_IDS = {
   },
 };
 
-export async function createCheckoutSession(planId, isYearly = false, additionalUsers = 0) {
+export async function createCheckoutSession(planId, isYearly = false, additionalUsers = 0, userId, planType) {
   try {
     // Get the correct price ID based on plan and billing interval
     const plan = PRICE_IDS[planId];
@@ -36,6 +37,8 @@ export async function createCheckoutSession(planId, isYearly = false, additional
       priceId,
       additionalUsers,
       additionalUserPriceId,
+      userId,
+      planType
     });
 
     const response = await fetch('/api/create-checkout-session', {
@@ -47,6 +50,9 @@ export async function createCheckoutSession(planId, isYearly = false, additional
         priceId,
         additionalUserPriceId,
         additionalUsers,
+        userId,
+        planType,
+        billingCycle: billingType
       }),
     });
 
