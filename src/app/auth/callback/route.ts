@@ -9,10 +9,11 @@ export async function GET(request) {
 
   if (code) {
     const supabase = createRouteHandlerClient({ cookies });
-    const { data: authData } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: authData, error: authError } = await supabase.auth.exchangeCodeForSession(code);
     
     if (authData?.user) {
-      const { data: profile, error } = await supabase
+      // Create or update profile with initial subscription data
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .upsert({
           id: authData.user.id,
@@ -28,11 +29,15 @@ export async function GET(request) {
         .select()
         .single();
 
-      return NextResponse.redirect(
-        `${requestUrl.origin}/checkout?session_id=${authData.user.id}&tier=${tier}`
-      );
+      // Pass both userId and tier to checkout
+      const checkoutUrl = new URL('/checkout', requestUrl.origin);
+      checkoutUrl.searchParams.set('userId', authData.user.id);
+      checkoutUrl.searchParams.set('tier', tier);
+      
+      return NextResponse.redirect(checkoutUrl.toString());
     }
   }
 
+  // Fallback to checkout with tier only
   return NextResponse.redirect(`${requestUrl.origin}/checkout?tier=${tier}`);
 }
