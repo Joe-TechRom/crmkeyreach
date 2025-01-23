@@ -172,6 +172,37 @@ export default function CheckoutPage() {
     checkAuth();
   }, [router]);
 
+const CheckoutPage = async ({ searchParams }) => {
+  const { session_id } = searchParams;
+  
+  // Get user profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', session_id)
+    .single();
+
+  // Create Stripe checkout
+  const stripeSession = await stripe.checkout.sessions.create({
+    customer_email: profile.email,
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    line_items: [{
+      price: PRICE_IDS[profile.plan_type],
+      quantity: 1,
+    }],
+    success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/pricing`,
+    metadata: {
+      user_id: session_id,
+      plan_type: profile.plan_type
+    }
+  });
+
+  return <RedirectToCheckout sessionId={stripeSession.id} />;
+};
+
+
   const handlePlanSelection = async (plan) => {
     if (isLoadingAuth) {
       toast({

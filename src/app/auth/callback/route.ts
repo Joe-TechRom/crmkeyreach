@@ -1,35 +1,38 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-  
+export async function GET(request) {
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get('code');
+  const tier = requestUrl.searchParams.get('tier') || 'single_user';
+
   if (code) {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { user }, error: authError } = await supabase.auth.exchangeCodeForSession(code)
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: authData } = await supabase.auth.exchangeCodeForSession(code);
+    
+    if (authData?.user) {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: authData.user.id,
+          user_id: authData.user.id,
+          email: authData.user.email,
+          subscription_status: 'pending',
+          subscription_tier: tier,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        })
+        .select()
+        .single();
 
-    if (authError) {
       return NextResponse.redirect(
-        `${requestUrl.origin}/auth/error?error=${authError.name}&error_description=${encodeURIComponent(authError.message)}`
-      )
-    }
-
-    if (user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('subscription_status, subscription_tier')
-        .eq('id', user.id)
-        .single()
-
-      if (userData?.subscription_status === 'active') {
-        return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
-      }
-      
-      return NextResponse.redirect(`${requestUrl.origin}/checkout?session_id=${user.id}&tier=${userData?.subscription_tier || 'single_user'}`)
+        `${requestUrl.origin}/checkout?session_id=${authData.user.id}&tier=${tier}`
+      );
     }
   }
 
-  return NextResponse.redirect(`${requestUrl.origin}/auth/error`)
+  return NextResponse.redirect(`${requestUrl.origin}/checkout?tier=${tier}`);
 }

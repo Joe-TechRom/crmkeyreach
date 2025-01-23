@@ -1,101 +1,120 @@
-import { headers } from 'next/headers'
-import { NextResponse } from 'next/server'
-import Stripe from 'stripe'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { headers } from 'next/headers';
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16'
-})
+  apiVersion: '2023-10-16',
+});
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: Request) {
-  const body = await req.text()
-  const signature = headers().get('Stripe-Signature')
-  const supabase = createRouteHandlerClient({ cookies })
+  const body = await req.text();
+  const signature = headers().get('Stripe-Signature');
+  const supabase = createRouteHandlerClient({ cookies });
 
-  let event: Stripe.Event
+  let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature!,
-      webhookSecret
-    )
+    event = stripe.webhooks.constructEvent(body, signature!, webhookSecret);
   } catch (error) {
-    console.error('Webhook signature verification failed')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+    console.error('Webhook signature verification failed', error);
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  const session = event.data.object as Stripe.Checkout.Session
+  const session = event.data.object as Stripe.Checkout.Session;
 
   switch (event.type) {
-    case 'checkout.session.completed': {
-      const customerId = session.customer as string
-      const userId = session.metadata?.userId
-      const subscriptionTier = session.metadata?.tier
+   case 'checkout.session.completed': {
+  const customerId = session.customer as string;
+  const userId = session.metadata?.userId;
+  // Get the tier from the subscription data
+  const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+  const subscriptionTier = subscription.metadata?.tier || session.metadata?.tier || 'single_user';
 
-      const dashboardRoutes = {
-        single_user: '/dashboard/single-user',
-        team: '/dashboard/team',
-        corporate: '/dashboard/corporate'
-      }
+  const profileData = {
+    id: userId,
+    stripe_customer_id: customerId,
+    subscription_status: 'active',
+    subscription_tier: subscriptionTier,
+    subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    updated_at: new Date().toISOString()
+  };
 
-      await supabase
-        .from('profiles')
-        .update({
-          stripe_customer_id: customerId,
-          subscription_status: 'active',
-          subscription_tier: subscriptionTier,
-          subscription_period_end: new Date(session.expires_at! * 1000).toISOString()
-        })
-        .eq('id', userId)
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert(profileData, { onConflict: 'id' })
+    .select()
+    .single();
 
-      return NextResponse.json({
-        success: true,
-        redirectUrl: dashboardRoutes[subscriptionTier as keyof typeof dashboardRoutes]
-      })
+  return NextResponse.json({
+    success: true,
+    userId,
+    plan: {
+      name: subscriptionTier,
+      status: 'active',
+      period_end: subscription.current_period_end
     }
+  });
+}
+
 
     case 'customer.subscription.updated': {
-      const subscription = event.data.object as Stripe.Subscription
-      const customerId = subscription.customer as string
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
 
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
           subscription_status: subscription.status,
-          subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString()
+          subscription_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          updated_at: new Date().toISOString()
         })
-        .eq('stripe_customer_id', customerId)
+        .eq('stripe_customer_id', customerId);
 
-      return NextResponse.json({ success: true })
+      if (error) {
+        console.error('Subscription update failed:', error);
+        return NextResponse.json({ error: 'Subscription update failed' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: subscription.status,
+        period_end: subscription.current_period_end
+      });
     }
 
     case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription
-      const customerId = subscription.customer as string
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
 
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
           subscription_status: 'inactive',
-          subscription_period_end: new Date().toISOString()
+          subscription_period_end: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
-        .eq('stripe_customer_id', customerId)
+        .eq('stripe_customer_id', customerId);
 
-      return NextResponse.json({ success: true })
+      if (error) {
+        console.error('Subscription deletion failed:', error);
+        return NextResponse.json({ error: 'Subscription deletion failed' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: 'inactive'
+      });
     }
 
     default:
-      return NextResponse.json({ received: true })
+      return NextResponse.json({ received: true });
   }
 }
 
 export async function GET() {
-  return NextResponse.json(
-    { message: 'Method not allowed' },
-    { status: 405 }
-  )
+  return NextResponse.json({ message: 'Method not allowed' }, { status: 405 });
 }

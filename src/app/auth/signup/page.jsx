@@ -49,11 +49,10 @@ function SignupPage() {
     }));
   };
 
-// For Google Sign-up
 const handleGoogleSignup = async () => {
   setIsGoogleLoading(true);
   try {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
@@ -61,6 +60,9 @@ const handleGoogleSignup = async () => {
           access_type: 'offline',
           prompt: 'consent',
         },
+        data: {
+          plan_type: planType // Pass plan type to trigger
+        }
       },
     });
     if (error) throw error;
@@ -69,32 +71,29 @@ const handleGoogleSignup = async () => {
       title: 'Error',
       description: error.message,
       status: 'error',
-      duration: 5000,
     });
   } finally {
     setIsGoogleLoading(false);
   }
 };
 
-// For Email Sign-up
 const handleSignup = async (e) => {
   e.preventDefault();
   setIsLoading(true);
+
   try {
     const { error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/checkout?tier=${planType}`
+      }
     });
+
     if (error) throw error;
     
-    toast({
-      title: 'Account created successfully',
-      description: 'Redirecting to payment...',
-      status: 'success',
-      duration: 3000,
-    });
+    router.push('/auth/verify-email');
     
-    router.push(`/checkout?tier=${planType}`);
   } catch (error) {
     toast({
       title: 'Signup failed',
@@ -106,6 +105,7 @@ const handleSignup = async (e) => {
     setIsLoading(false);
   }
 };
+
 
 
   return (
