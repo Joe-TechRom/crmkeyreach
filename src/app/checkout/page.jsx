@@ -171,52 +171,47 @@ export default function CheckoutPage() {
     checkAuth();
   }, [router]);
 
-const handlePlanSelection = async (plan) => {
-  if (!session || !userId) {
-    toast({
-      title: 'Authentication Required',
-      description: 'Please log in to continue',
-      status: 'error',
-      duration: 5000,
-      isClosable: true,
-    });
-    router.push('/auth');
-    return;
-  }
+  const handlePlanSelection = async (plan) => {
+    try {
+      setIsLoading(true);
 
-  try {
-    setIsLoading(true);
-    // Log the exact values being passed
-    console.log({
-      planId: plan.id,
-      isYearly,
-      additionalUsers: additionalUsers[plan.name] || 0,
-      userId
-    });
+      const checkoutData = {
+        planId: plan.id,
+        isYearly,
+        additionalUsers: Number(additionalUsers[plan.name] || 0),
+        userId,
+        planType: plan.id, // Adding planType information
+        billingCycle: isYearly ? 'yearly' : 'monthly', // Adding billingCycle information
+      };
 
-    const checkoutSession = await createCheckoutSession(
-      plan.id,        // This is your planId
-      isYearly,       // Boolean for yearly billing
-      additionalUsers[plan.name] || 0,
-      userId          // User ID from session
-    );
+      console.log('Starting checkout with:', checkoutData);
 
-    if (checkoutSession?.url) {
-      window.location.href = checkoutSession.url;
+      const checkoutSession = await createCheckoutSession(
+        checkoutData.planId,
+        checkoutData.isYearly,
+        checkoutData.additionalUsers,
+        checkoutData.planType, // Passing planType to checkout session
+        checkoutData.billingCycle // Passing billingCycle to checkout session
+      );
+
+      if (checkoutSession?.url) {
+        // Store tier information in localStorage before redirect
+        localStorage.setItem('selectedTier', plan.id);
+        window.location.href = checkoutSession.url;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      toast({
+        title: 'Checkout Error',
+        description: 'Please try selecting your plan again',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    toast({
-      title: 'Checkout Error',
-      description: 'Unable to start checkout process',
-      status: 'error',
-      duration: 5000,
-      isClosable: true,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+  };
 
   const handleAdditionalUsersChange = (planName, value) => {
     setAdditionalUsers((prev) => ({ ...prev, [planName]: value }));

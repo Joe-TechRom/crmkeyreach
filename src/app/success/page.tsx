@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiCheck, FiArrowRight, FiAward } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 import { useRouter, useSearchParams } from 'next/navigation';
+import supabase from '@/lib/supabaseClient';
 import {
   Box,
   VStack,
@@ -22,9 +23,6 @@ import {
   HStack,
   Icon,
 } from '@chakra-ui/react';
-import Stripe from 'stripe'; // Import Stripe
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY); // Initialize Stripe
 
 const MotionBox = motion(Box);
 const MotionVStack = motion(VStack);
@@ -59,11 +57,8 @@ interface SessionData {
     amount: number;
   };
   status: string;
-  customerId: string;
-  subscriptionId: string;
   profile: {
     subscription_tier: string;
-    stripe_customer_id: string;
   };
   metadata: {
     userId: string;
@@ -113,110 +108,47 @@ export default function SuccessPage() {
   }, [sessionData]);
 
   useEffect(() => {
-    async function verifySession() {
+    const verifySession = async () => {
       if (!sessionId) return;
 
       try {
-        // 1. Retrieve the Checkout Session from Stripe
-        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const selectedTier = localStorage.getItem('selectedTier');
+        const { data: { session } } = await supabase.auth.getSession();
 
-        // 2. Verify the Payment Status
-        if (session.payment_status !== 'paid') {
-          console.error('Payment not successful for session:', sessionId);
-          toast({
-            title: 'Payment Failed',
-            description: 'Your payment was not successful. Please try again.',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-            position: 'top',
-          });
-          setLoading(false);
+        if (!session) {
+          router.push('/auth');
           return;
         }
 
-        // 3. Extract Data from Session
-        const { metadata } = session;
-        const subscriptionId = session.subscription as string; // Type assertion
-        const customerId = session.customer as string; // Type assertion
-        const planId = metadata.planId;
-        const userId = metadata.userId;
-        const billingCycle = metadata.billingCycle;
-        const additionalUsers = metadata.additionalUsers;
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .single();
 
-        // 4.  Construct Session Data (adjust as needed based on your database schema)
+        if (profileError) throw profileError;
+
         const sessionData: SessionData = {
           plan: {
-            name: planId, // Or fetch from your plan configuration
-            interval: billingCycle,
-            amount: 0, // You might need to calculate this or fetch it
+            name: selectedTier || profile.subscription_tier || 'Basic',
+            interval: profile.billing_cycle || 'monthly',
+            amount: profile.subscription_amount || 0,
           },
-          status: 'active', // Assuming payment is successful
-          customerId: customerId,
-          subscriptionId: subscriptionId,
+          status: 'active',
           profile: {
-            subscription_tier: planId, // Assuming planId maps to subscription tier
-            stripe_customer_id: customerId,
+            subscription_tier: selectedTier || profile.subscription_tier || 'single_user',
           },
           metadata: {
-            userId: userId,
-            planId: planId,
-            billingCycle: billingCycle,
-            additionalUsers: additionalUsers,
+            userId: session.user.id,
+            planId: selectedTier || profile.subscription_tier,
+            billingCycle: profile.billing_cycle || 'monthly',
+            additionalUsers: profile.additional_users?.toString() || '0',
           },
         };
 
-        // 5.  Update Your Database (replace with your actual database logic)
-       try {
-  const dbResponse = await fetch('/api/update-subscription', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      userId: metadata.userId,
-      planId: metadata.planId,
-      subscriptionId: subscriptionId,
-      customerId: customerId,
-      billingCycle: metadata.billingCycle,
-      additionalUsers: metadata.additionalUsers,
-    }),
-  });
-
-          if (!dbResponse.ok) {
-            console.error('Failed to update database:', dbResponse.statusText);
-            toast({
-              title: 'Error Updating Subscription',
-              description: 'There was an error updating your subscription. Please contact support.',
-              status: 'error',
-              duration: 5000,
-              isClosable: true,
-              position: 'top',
-            });
-            setLoading(false);
-            return;
-          }
-
-          console.log('Database updated successfully');
-        } catch (dbError) {
-          console.error('Error updating database:', dbError);
-          toast({
-            title: 'Error Updating Subscription',
-            description: 'There was an error updating your subscription. Please contact support.',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-            position: 'top',
-          });
-          setLoading(false);
-          return;
-        }
-
-        // 6. Set Session Data and Stop Loading
         setSessionData(sessionData);
-        setLoading(false);
+        localStorage.removeItem('selectedTier');
 
-        // 7. Show Success Toast
         toast({
           title: '🎉 Subscription Activated!',
           description: 'Welcome to your premium subscription',
@@ -229,24 +161,35 @@ export default function SuccessPage() {
         console.error('Error verifying session:', error);
         toast({
           title: 'Error Verifying Session',
-          description: 'There was an error verifying your session. Please contact support.',
+          description: 'Please contact support if the issue persists.',
           status: 'error',
           duration: 5000,
           isClosable: true,
           position: 'top',
         });
+      } finally {
         setLoading(false);
       }
-    }
+    };
 
     verifySession();
-  }, [sessionId, toast]);
+  }, [sessionId, router, toast]);
+
+  const handleGoToDashboard = () => {
+    const tier = sessionData?.profile?.subscription_tier || 'single_user';
+    const dashboardRoutes = {
+      'single_user': '/dashboard/single-user',
+      'team': '/dashboard/team',
+      'corporate': '/dashboard/corporate',
+    };
+    router.push(dashboardRoutes[tier] || '/dashboard/single-user');
+  };
 
   const renderPlanDetails = () => {
     if (!sessionData?.plan) return null;
 
     const planDetails = [
-      { label: 'Plan', value: sessionData.plan.name || 'Premium Plan' },
+      { label: 'Plan', value: sessionData.plan.name || 'Basic' },
       {
         label: 'Billing Cycle',
         value: sessionData.plan.interval === 'month' ? 'Monthly' : 'Yearly',
@@ -275,36 +218,6 @@ export default function SuccessPage() {
         ))}
       </List>
     );
-  };
-
-  const handleGoToDashboard = () => {
-    if (!sessionData?.profile?.subscription_tier) {
-      console.warn(
-        'Subscription tier is not defined. Redirecting to pricing page.'
-      );
-      router.push('/pricing');
-      return;
-    }
-
-    const tier = sessionData.profile.subscription_tier;
-
-    // Define a mapping of subscription tiers to dashboard routes
-    const dashboardRoutes: { [key: string]: string } = {
-      'single_user': '/dashboard/single-user',
-      team: '/dashboard/team',
-      corporate: '/dashboard/corporate',
-      // Add more tiers and their corresponding routes here
-    };
-
-    // Check if the tier exists in the mapping
-    if (dashboardRoutes[tier]) {
-      router.push(dashboardRoutes[tier]); // Redirect to the appropriate dashboard
-    } else {
-      console.warn(
-        `No dashboard route defined for tier: ${tier}. Redirecting to pricing page.`
-      );
-      router.push('/pricing'); // Redirect to pricing if tier is not defined
-    }
   };
 
   return (

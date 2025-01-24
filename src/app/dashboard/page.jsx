@@ -32,7 +32,13 @@ const DashboardPage = () => {
     return null;
   }
 
-  const userTier = user?.tier || 'single-user'; // Default to single-user if tier is not defined
+  // Check for active subscription
+  if (user?.subscription_status !== 'active') {
+    redirect('/checkout');
+    return null;
+  }
+
+  const userTier = user?.subscription_tier || 'single_user'; // Default to single-user if tier is not defined
 
   return (
     <Box
@@ -41,7 +47,7 @@ const DashboardPage = () => {
       py={10}
     >
       <Container maxW="8xl">
-        {userTier === 'single-user' && <SingleUserDashboard />}
+        {userTier === 'single_user' && <SingleUserDashboard />}
         {userTier === 'team' && <TeamDashboard />}
         {userTier === 'corporate' && <CorporateDashboard />}
       </Container>

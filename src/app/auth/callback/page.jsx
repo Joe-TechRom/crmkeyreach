@@ -1,3 +1,4 @@
+// src/app/auth/callback/page.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,34 +10,37 @@ export default function AuthCallback() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
         // Get the code from URL
         const code = searchParams.get('code');
-        const tier = searchParams.get('tier') || 'single_user';
+        const selectedTier = localStorage.getItem('selectedTier') || 'single_user';
 
         if (code) {
           // Exchange code for session
           const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-          
+
           if (sessionError) throw sessionError;
 
           if (data?.user) {
             // Fetch user profile
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('subscription_status, subscription_tier')
-              .eq('id', data.user.id)
+              .eq('user_id', data.user.id) // Corrected: use 'user_id'
               .single();
+
+            if (profileError) throw profileError;
 
             // Determine redirect path based on subscription status
             if (profile?.subscription_status === 'active') {
-              const userTier = profile?.subscription_tier || tier;
+              const userTier = profile?.subscription_tier || selectedTier;
               router.push(`/dashboard/${userTier}`);
             } else {
-              router.push(`/checkout?session_id=${data.user.id}&tier=${tier}`);
+              router.push(`/pricing`); // Redirect to pricing page
             }
           }
         } else {
@@ -48,11 +52,24 @@ export default function AuthCallback() {
         setError(error.message);
         // Wait briefly before redirecting on error
         setTimeout(() => router.push('/auth'), 2000);
+      } finally {
+        setLoading(false);
       }
     };
 
     handleCallback();
   }, [router, searchParams]);
+
+  if (loading) {
+    return (
+      <Box minH="100vh" display="flex" alignItems="center" justifyContent="center">
+        <VStack spacing={4}>
+          <Text>Finalizing authentication...</Text>
+          <Spinner size="xl" color="blue.500" />
+        </VStack>
+      </Box>
+    );
+  }
 
   if (error) {
     return (
@@ -65,12 +82,5 @@ export default function AuthCallback() {
     );
   }
 
-  return (
-    <Box minH="100vh" display="flex" alignItems="center" justifyContent="center">
-      <VStack spacing={4}>
-        <Text>Finalizing authentication...</Text>
-        <Spinner size="xl" color="blue.500" />
-      </VStack>
-    </Box>
-  );
+  return null;
 }
