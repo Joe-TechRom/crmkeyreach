@@ -1,4 +1,3 @@
-// src/app/auth/callback/route.js
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -9,7 +8,6 @@ export async function GET(request) {
   const tier = requestUrl.searchParams.get('tier') || 'single_user';
   const hashParams = new URLSearchParams(requestUrl.hash?.substring(1) || '');
   const accessToken = hashParams.get('access_token');
-
   const supabase = createRouteHandlerClient({ cookies });
 
   try {
@@ -47,11 +45,11 @@ export async function GET(request) {
         .single();
 
       // Pass both userId and tier to checkout
-    const checkoutUrl = new URL('/checkout', requestUrl.origin);
-    checkoutUrl.searchParams.set('userId', user.id);
-    checkoutUrl.searchParams.set('tier', tier);
-    return NextResponse.redirect(checkoutUrl.toString());
-}
+      const checkoutUrl = new URL('/checkout', requestUrl.origin);
+      checkoutUrl.searchParams.set('userId', userData.id);
+      checkoutUrl.searchParams.set('tier', tier);
+      return NextResponse.redirect(checkoutUrl.toString());
+    }
   } catch (error) {
     console.error('Auth error:', error);
     return NextResponse.redirect(`${requestUrl.origin}/auth?error=${encodeURIComponent(error.message)}`);

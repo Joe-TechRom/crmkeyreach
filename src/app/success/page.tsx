@@ -1,5 +1,3 @@
-// src/app/success/page.tsx
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiCheck, FiArrowRight, FiAward } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getSubscriptionFromProfile } from '@/lib/utils/subscription';
+import { logError } from '@/lib/utils/log';
 import supabase from '@/lib/supabaseClient';
 import {
   Box,
@@ -112,35 +112,48 @@ export default function SuccessPage() {
       if (!sessionId) return;
 
       try {
-        const selectedTier = localStorage.getItem('selectedTier');
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          logError('Session error:', sessionError.message, sessionError);
+          router.push('/auth');
+          return;
+        }
 
         if (!session) {
           router.push('/auth');
           return;
         }
 
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single();
+        const userId = session.user.id;
+        const profile = await getSubscriptionFromProfile(userId);
 
-        if (profileError) throw profileError;
+        if (profile.error) {
+          logError('Profile fetch error:', profile.error, profile.details);
+          toast({
+            title: 'Error Verifying Session',
+            description: 'Please contact support if the issue persists.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+            position: 'top',
+          });
+          return;
+        }
 
         const sessionData: SessionData = {
           plan: {
-            name: selectedTier || profile.subscription_tier || 'Basic',
+            name: profile.subscription_tier || 'Basic',
             interval: profile.billing_cycle || 'monthly',
-            amount: profile.subscription_amount || 0,
+            amount: 0, // Amount is not available in profile
           },
-          status: 'active',
+          status: profile.subscription_status || 'active',
           profile: {
-            subscription_tier: selectedTier || profile.subscription_tier || 'single_user',
+            subscription_tier: profile.subscription_tier || 'single_user',
           },
           metadata: {
-            userId: session.user.id,
-            planId: selectedTier || profile.subscription_tier,
+            userId: userId,
+            planId: profile.subscription_tier,
             billingCycle: profile.billing_cycle || 'monthly',
             additionalUsers: profile.additional_users?.toString() || '0',
           },
@@ -148,7 +161,6 @@ export default function SuccessPage() {
 
         setSessionData(sessionData);
         localStorage.removeItem('selectedTier');
-
         toast({
           title: '🎉 Subscription Activated!',
           description: 'Welcome to your premium subscription',
@@ -158,7 +170,7 @@ export default function SuccessPage() {
           position: 'top',
         });
       } catch (error) {
-        console.error('Error verifying session:', error);
+        logError('Error verifying session:', error);
         toast({
           title: 'Error Verifying Session',
           description: 'Please contact support if the issue persists.',

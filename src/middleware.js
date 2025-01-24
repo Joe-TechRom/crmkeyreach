@@ -1,72 +1,58 @@
-// middleware.js
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabaseClient'; // Import server-side client
+import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { getSubscriptionFromProfile } from '@/lib/utils/subscription';
+import { logError } from '@/lib/utils/log'; // Import a logging utility
 
 export async function middleware(req) {
   const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res }); // Use the middleware client
+  const supabase = createMiddlewareClient({ req, res });
 
   try {
-    // Get session with better error handling
+    // 1. Get Session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError) {
-      console.error('Session error:', sessionError.message);
-      // Redirect to signin only if there's an error AND the user is trying to access a protected route
+      logError('Session error:', sessionError.message);
       if (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/billing')) {
         return NextResponse.redirect(new URL('/auth/signin', req.url));
       }
-      return res; // Let the request continue for public pages
+      return res;
     }
 
-    // Protected routes handling
+    // 2. Handle Unauthenticated Users
     if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
       return NextResponse.redirect(new URL('/auth/signin', req.url));
     }
 
+    // 3. Handle Authenticated Users
     if (session) {
-      // Enhanced profile fetch with subscription check
-      const serverSupabase = createSupabaseServerClient(); // Create server-side client
-      const { data: profile, error: profileError } = await serverSupabase
-        .from('profiles')
-        .select(`
-          subscription_tier,
-          subscription_status,
-          subscriptions (
-            status,
-            current_period_end
-          )
-        `)
-        .eq('id', session.user.id)
-        .single();
+      const serverSupabase = createSupabaseServerClient();
+      const userId = session.user.id;
 
-      if (profileError) {
-        console.error('Profile fetch error:', profileError.message);
+      // 3.1 Fetch Profile and Subscription Data
+      const profile = await getSubscriptionFromProfile(userId);
+
+      if (profile.error) {
+        logError('Profile fetch error:', profile.error, profile.details);
         return res;
       }
 
-      // Enhanced subscription routing logic
-      if (profile?.subscription_status === 'active') {
-        const isAuthRoute = req.nextUrl.pathname.startsWith('/auth');
-        const isHomePage = req.nextUrl.pathname === '/';
-
-        if (isAuthRoute || isHomePage) {
-          const tier = profile.subscription_tier;
-          return NextResponse.redirect(new URL(`/dashboard/${tier}`, req.url));
-        }
+      // 3.2 Handle Active Subscriptions
+      if (profile?.subscription_status === 'active' && (req.nextUrl.pathname.startsWith('/auth') || req.nextUrl.pathname === '/')) {
+        const tier = profile.subscription_tier;
+        return NextResponse.redirect(new URL(`/dashboard/${tier}`, req.url));
       }
 
-      // Check for expired subscriptions
-      const subscription = profile?.subscriptions?.[0];
-      if (subscription?.status === 'active' && new Date(subscription.current_period_end) < new Date()) {
+      // 3.3 Handle Expired Subscriptions
+      if (profile?.subscription_status === 'active' && profile?.subscription_period_end && new Date(profile.subscription_period_end) < new Date()) {
         return NextResponse.redirect(new URL('/billing/update', req.url));
       }
     }
 
     return res;
   } catch (error) {
-    console.error('Middleware error:', error.message);
+    logError('Middleware error:', error.message, error);
     return res;
   }
 }

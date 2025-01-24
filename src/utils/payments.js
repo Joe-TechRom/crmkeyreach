@@ -60,7 +60,9 @@ export async function createCheckoutSession(
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'API request failed');
+      const message = data?.message || 'API request failed';
+      console.error('Checkout API Error:', message);
+      throw new Error(message);
     }
 
     return data; // Return the data object containing the url

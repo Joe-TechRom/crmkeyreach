@@ -26,11 +26,16 @@ export async function POST(req) {
       mode: 'subscription',
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cancel`,
+      client_reference_id: userId,
       metadata: {
         userId,
-        tier: planType,
-        billingCycle,
         additionalUsers: additionalUsers || 0,
+      },
+      subscription_data: {
+        metadata: {
+          userId,
+          additionalUsers: additionalUsers || 0,
+        },
       },
     });
 
@@ -38,7 +43,6 @@ export async function POST(req) {
       url: session.url,
       sessionId: session.id 
     });
-
   } catch (error) {
     console.error('Error creating checkout session:', error);
     return NextResponse.json(

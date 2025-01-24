@@ -1,48 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Card from '@/components/ui/Card';
-import { 
-  Text, 
-  VStack, 
-  Heading, 
-  List, 
-  ListItem, 
-  Container, 
-  Box, 
-  Grid, 
+import {
+  Text,
+  VStack,
+  Heading,
+  List,
+  ListItem,
+  Container,
+  Box,
+  Grid,
   useColorModeValue,
   Icon,
   Flex,
-  Link
+  Link,
+  useToast,
 } from '@chakra-ui/react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { motion } from 'framer-motion';
 import { FaHome, FaCalendar, FaUser } from 'react-icons/fa';
 import { FiLogOut } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { logError } from '@/lib/utils/log';
 
 const MotionBox = motion(Box);
 const MotionCard = motion(Card);
 
-const mockClientData = {
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  properties: [
-    { id: 1, address: '123 Main St, Anytown, USA', price: '$500,000' },
-    { id: 2, address: '456 Oak Ave, Anytown, USA', price: '$750,000' },
-  ],
-  appointments: [
-    { id: 1, date: '2024-08-10', time: '10:00 AM', description: 'Property Viewing' },
-    { id: 2, date: '2024-08-15', time: '2:00 PM', description: 'Meeting with Agent' },
-  ],
-};
-
 const getGreeting = () => {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good Morning";
-  if (hour < 18) return "Good Afternoon";
-  return "Good Evening";
+  if (hour < 12) return 'Good Morning';
+  if (hour < 18) return 'Good Afternoon';
+  return 'Good Evening';
 };
 
 function CustomerPortal() {
@@ -53,13 +44,17 @@ function CustomerPortal() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const supabase = createClientComponentClient();
+  const router = useRouter();
+  const toast = useToast();
 
   const colors = {
     orange: {
       light: '#FF9A5C',
       main: '#FF6B2C',
-      gradient: 'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)'
-    }
+      gradient: 'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)',
+    },
   };
 
   const gradientBg = `
@@ -69,18 +64,127 @@ function CustomerPortal() {
     radial-gradient(circle at 0% 100%, ${colors.orange.main}10 0%, transparent 50%)
   `;
 
-  const handleLogin = () => {
-    if (username === 'client' && password === 'password') {
-      setIsAuthenticated(true);
-      setLoginError('');
-    } else {
-      setLoginError('Invalid credentials');
+  useEffect(() => {
+    const fetchSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setIsAuthenticated(true);
+        fetchProfile(session.user.id);
+      }
+    };
+    fetchSession();
+  }, []);
+
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        logError('Error fetching profile:', error.message, error);
+        toast({
+          title: 'Error fetching profile',
+          description: 'Please try again later.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
+        return;
+      }
+      setProfile(data);
+    } catch (error) {
+      logError('Error fetching profile:', error);
+      toast({
+        title: 'Error fetching profile',
+        description: 'Please try again later.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+        position: 'top',
+      });
     }
   };
 
-  const handleForgotPassword = () => {
-    if (resetEmail) {
+  const handleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: username,
+        password: password,
+      });
+      if (error) {
+        setLoginError(error.message);
+        logError('Login error:', error.message, error);
+        return;
+      }
+      setIsAuthenticated(true);
+      setLoginError('');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        fetchProfile(session.user.id);
+      }
+    } catch (error) {
+      logError('Login error:', error);
+      setLoginError('An unexpected error occurred.');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
+      if (error) {
+        logError('Forgot password error:', error.message, error);
+        toast({
+          title: 'Error resetting password',
+          description: 'Please try again later.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
+        return;
+      }
       setResetSuccess(true);
+      toast({
+        title: 'Reset link sent',
+        description: 'Please check your email for password reset instructions.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+        position: 'top',
+      });
+    } catch (error) {
+      logError('Forgot password error:', error);
+      toast({
+        title: 'Error resetting password',
+        description: 'Please try again later.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+        position: 'top',
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsAuthenticated(false);
+      setProfile(null);
+      router.push('/auth/signin');
+    } catch (error) {
+      logError('Logout error:', error);
+      toast({
+        title: 'Error logging out',
+        description: 'Please try again later.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+        position: 'top',
+      });
     }
   };
 
@@ -108,9 +212,9 @@ function CustomerPortal() {
           >
             {!isForgotPassword ? (
               <VStack spacing={6} align="stretch">
-                <Heading 
-                  as="h2" 
-                  size="xl" 
+                <Heading
+                  as="h2"
+                  size="xl"
                   bgGradient={colors.orange.gradient}
                   bgClip="text"
                   textAlign="center"
@@ -118,9 +222,9 @@ function CustomerPortal() {
                   Customer Portal
                 </Heading>
                 <Input
-                  label="Username"
-                  type="text"
-                  placeholder="Enter your username"
+                  label="Email"
+                  type="email"
+                  placeholder="Enter your email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   size="lg"
@@ -138,14 +242,14 @@ function CustomerPortal() {
                     {loginError}
                   </Text>
                 )}
-                <Button 
+                <Button
                   onClick={handleLogin}
                   size="lg"
                   bgGradient={colors.orange.gradient}
                   color="white"
                   _hover={{
                     transform: 'translateY(-2px)',
-                    shadow: '2xl'
+                    shadow: '2xl',
                   }}
                   h={16}
                   fontSize="lg"
@@ -165,9 +269,9 @@ function CustomerPortal() {
               </VStack>
             ) : (
               <VStack spacing={6} align="stretch">
-                <Heading 
-                  as="h2" 
-                  size="xl" 
+                <Heading
+                  as="h2"
+                  size="xl"
                   bgGradient={colors.orange.gradient}
                   bgClip="text"
                   textAlign="center"
@@ -187,14 +291,14 @@ function CustomerPortal() {
                       onChange={(e) => setResetEmail(e.target.value)}
                       size="lg"
                     />
-                    <Button 
+                    <Button
                       onClick={handleForgotPassword}
                       size="lg"
                       bgGradient={colors.orange.gradient}
                       color="white"
                       _hover={{
                         transform: 'translateY(-2px)',
-                        shadow: '2xl'
+                        shadow: '2xl',
                       }}
                       h={16}
                       fontSize="lg"
@@ -230,16 +334,11 @@ function CustomerPortal() {
   }
 
   return (
-    <Box
-      minH="100vh"
-      w="100%"
-      style={{ background: gradientBg }}
-      py={10}
-    >
+    <Box minH="100vh" w="100%" style={{ background: gradientBg }} py={10}>
       <Container maxW="7xl">
         <VStack spacing={10} align="stretch">
-          <Flex 
-            justify="space-between" 
+          <Flex
+            justify="space-between"
             align="center"
             bg={useColorModeValue('white', 'gray.800')}
             p={6}
@@ -247,10 +346,7 @@ function CustomerPortal() {
             boxShadow="lg"
           >
             <VStack align="flex-start" spacing={1}>
-              <Text 
-                fontSize="lg" 
-                color={useColorModeValue('gray.600', 'gray.400')}
-              >
+              <Text fontSize="lg" color={useColorModeValue('gray.600', 'gray.400')}>
                 {getGreeting()},
               </Text>
               <Heading
@@ -259,20 +355,20 @@ function CustomerPortal() {
                 bgGradient={colors.orange.gradient}
                 bgClip="text"
               >
-                {mockClientData.name}
+                {profile?.full_name || 'User'}
               </Heading>
             </VStack>
-            
+
             <Flex align="center" gap={4}>
               <Icon as={FaUser} w={6} h={6} color={colors.orange.main} />
               <Button
-                onClick={() => setIsAuthenticated(false)}
+                onClick={handleLogout}
                 size="md"
                 bgGradient={colors.orange.gradient}
                 color="white"
                 _hover={{
                   transform: 'translateY(-2px)',
-                  shadow: 'lg'
+                  shadow: 'lg',
                 }}
                 leftIcon={<Icon as={FiLogOut} />}
                 rounded="xl"
@@ -281,15 +377,14 @@ function CustomerPortal() {
               </Button>
             </Flex>
           </Flex>
-
           <Grid templateColumns={{ base: '1fr', lg: 'repeat(2, 1fr)' }} gap={8}>
             <MotionBox
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <Card 
-                p={6} 
+              <Card
+                p={6}
                 h="full"
                 borderRadius="2xl"
                 boxShadow="2xl"
@@ -301,8 +396,8 @@ function CustomerPortal() {
                     <Heading as="h3" size="md">Your Properties</Heading>
                   </Flex>
                   <List spacing={4}>
-                    {mockClientData.properties.map((property) => (
-                      <ListItem 
+                    {profile?.properties?.map((property) => (
+                      <ListItem
                         key={property.id}
                         p={4}
                         bg={useColorModeValue('gray.50', 'gray.700')}
@@ -313,19 +408,18 @@ function CustomerPortal() {
                         <Text fontWeight="bold">{property.address}</Text>
                         <Text color={colors.orange.main} fontSize="lg">{property.price}</Text>
                       </ListItem>
-                    ))}
+                    )) || <Text>No properties found.</Text>}
                   </List>
                 </VStack>
               </Card>
             </MotionBox>
-
             <MotionBox
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <Card 
-                p={6} 
+              <Card
+                p={6}
                 h="full"
                 borderRadius="2xl"
                 boxShadow="2xl"
@@ -337,8 +431,8 @@ function CustomerPortal() {
                     <Heading as="h3" size="md">Your Appointments</Heading>
                   </Flex>
                   <List spacing={4}>
-                    {mockClientData.appointments.map((appointment) => (
-                      <ListItem 
+                    {profile?.appointments?.map((appointment) => (
+                      <ListItem
                         key={appointment.id}
                         p={4}
                         bg={useColorModeValue('gray.50', 'gray.700')}
@@ -347,9 +441,11 @@ function CustomerPortal() {
                         _hover={{ transform: 'translateY(-2px)', shadow: 'md' }}
                       >
                         <Text fontWeight="bold">{appointment.description}</Text>
-                        <Text>{appointment.date} at {appointment.time}</Text>
+                        <Text>
+                          {appointment.date} at {appointment.time}
+                        </Text>
                       </ListItem>
-                    ))}
+                    )) || <Text>No appointments found.</Text>}
                   </List>
                 </VStack>
               </Card>

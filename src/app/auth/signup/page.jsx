@@ -1,11 +1,10 @@
-// src/app/signup/page.jsx
-
 'use client';
 
-import { useState, useEffect } from 'react'; // Import useEffect
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FcGoogle } from 'react-icons/fc';
-import supabase from '@/lib/supabaseClient'; // Import client-side client
+import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
+import supabase from '@/lib/supabaseClient';
 import {
   Box,
   Container,
@@ -22,12 +21,18 @@ import {
   HStack,
   useColorModeValue,
   FormErrorMessage,
+  InputGroup,
+  InputRightElement,
+  Icon,
 } from '@chakra-ui/react';
 
 function SignupPage() {
   const textColor = useColorModeValue('gray.700', 'gray.200');
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -35,6 +40,7 @@ function SignupPage() {
     name: '',
     phoneNumber: '',
   });
+
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
@@ -43,10 +49,28 @@ function SignupPage() {
   const toast = useToast();
   const planType = searchParams.get('plan') || 'single_user';
 
+  const checkEmailExists = async (email) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('email', email)
+      .single();
+    return !!data;
+  };
+
   useEffect(() => {
-    // Password validation effect
     if (formData.password !== formData.confirmPassword) {
       setPasswordError('Passwords do not match');
+    } else if (formData.password && formData.password.length < 8) {
+      setPasswordError('Password must be at least 8 characters long');
+    } else if (formData.password && !/[A-Z]/.test(formData.password)) {
+      setPasswordError('Password must contain at least one uppercase letter');
+    } else if (formData.password && !/[a-z]/.test(formData.password)) {
+      setPasswordError('Password must contain at least one lowercase letter');
+    } else if (formData.password && !/[0-9]/.test(formData.password)) {
+      setPasswordError('Password must contain at least one number');
+    } else if (formData.password && !/[^A-Za-z0-9]/.test(formData.password)) {
+      setPasswordError('Password must contain at least one special character');
     } else {
       setPasswordError('');
     }
@@ -62,10 +86,32 @@ function SignupPage() {
 
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
-    console.log("Initiating Google signup with plan type:", planType); // ADDED LOGGING
-
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data: { user }, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (user?.email) {
+        const emailExists = await checkEmailExists(user.email);
+        if (emailExists) {
+          toast({
+            title: 'Account exists',
+            description: 'An account with this email already exists. Please sign in instead.',
+            status: 'error',
+            duration: 5000,
+          });
+          router.push('/signin');
+          return;
+        }
+      }
+
+      const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
@@ -76,22 +122,15 @@ function SignupPage() {
         },
       });
 
-      if (error) {
-        console.error('Google signup error:', error);
-        toast({
-          title: 'Error',
-          description: error.message,
-          status: 'error',
-        });
-      } else {
-        console.log("Google signup initiated successfully."); // ADDED LOGGING
-      }
+      if (authError) throw authError;
+
     } catch (error) {
-      console.error('Unexpected Google signup error:', error);
+      console.error('Google signup error:', error);
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred during Google signup.',
+        description: error.message || 'An error occurred during Google signup',
         status: 'error',
+        duration: 5000,
       });
     } finally {
       setIsGoogleLoading(false);
@@ -100,10 +139,9 @@ function SignupPage() {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-
     if (passwordError) {
       toast({
-        title: 'Signup failed',
+        title: 'Validation Error',
         description: 'Please correct the password errors.',
         status: 'error',
         duration: 5000,
@@ -112,39 +150,46 @@ function SignupPage() {
     }
 
     setIsLoading(true);
-    console.log("Signing up with email:", formData.email, "and plan type:", planType); // ADDED LOGGING
-
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const emailExists = await checkEmailExists(formData.email);
+      if (emailExists) {
+        toast({
+          title: 'Email already registered',
+          description: 'This email is already registered. Please sign in or use a different email.',
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
           data: {
-            plan_type: planType, // Pass plan type as user metadata
-            full_name: formData.name, // Store full name
-            phone_number: formData.phoneNumber, // Store phone number
+            plan_type: planType,
+            full_name: formData.name,
+            phone_number: formData.phoneNumber,
           },
         },
       });
 
-      if (error) {
-        console.error('Email/Password signup error:', error);
-        toast({
-          title: 'Signup failed',
-          description: error.message,
-          status: 'error',
-          duration: 5000,
-        });
-      } else {
-        console.log("Email/Password signup initiated successfully.  Check email for verification."); // ADDED LOGGING
-        router.push('/auth/verify-email'); // Redirect to verify email page
-      }
+      if (error) throw error;
+
+      toast({
+        title: 'Verification email sent',
+        description: 'Please check your email to verify your account.',
+        status: 'success',
+        duration: 5000,
+      });
+      router.push('/auth/verify-email');
+
     } catch (error) {
-      console.error('Unexpected email/password signup error:', error);
+      console.error('Signup error:', error);
       toast({
         title: 'Signup failed',
-        description: 'An unexpected error occurred during signup.',
+        description: error.message || 'An error occurred during signup',
         status: 'error',
         duration: 5000,
       });
@@ -164,6 +209,7 @@ function SignupPage() {
             Complete your registration to continue with your {planType} plan
           </Text>
         </Stack>
+
         <Box
           w="full"
           bg={bgColor}
@@ -173,20 +219,24 @@ function SignupPage() {
           borderWidth="1px"
           borderColor={borderColor}
         >
-          <VStack spacing={4}>
+          <VStack spacing={6}>
             <Button
               w="full"
               size="lg"
               onClick={handleGoogleSignup}
-              leftIcon={<FcGoogle />}
               isLoading={isGoogleLoading}
               loadingText="Connecting..."
               variant="outline"
               borderColor={borderColor}
               color={textColor}
+              leftIcon={<Icon as={FcGoogle} boxSize={6} />}
+              _hover={{
+                bg: useColorModeValue('gray.50', 'gray.700'),
+              }}
             >
               Sign up with Google
             </Button>
+
             <HStack w="full">
               <Divider />
               <Text fontSize="sm" color={textColor} whiteSpace="nowrap">
@@ -194,6 +244,7 @@ function SignupPage() {
               </Text>
               <Divider />
             </HStack>
+
             <form onSubmit={handleSignup} style={{ width: '100%' }}>
               <Stack spacing={4}>
                 <FormControl isRequired>
@@ -207,6 +258,7 @@ function SignupPage() {
                     color={textColor}
                   />
                 </FormControl>
+
                 <FormControl isRequired>
                   <FormLabel color={textColor}>Email address</FormLabel>
                   <Input
@@ -218,6 +270,7 @@ function SignupPage() {
                     color={textColor}
                   />
                 </FormControl>
+
                 <FormControl isRequired>
                   <FormLabel color={textColor}>Phone Number</FormLabel>
                   <Input
@@ -229,31 +282,56 @@ function SignupPage() {
                     color={textColor}
                   />
                 </FormControl>
+
                 <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel color={textColor}>Password</FormLabel>
-                  <Input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    borderColor={borderColor}
-                    color={textColor}
-                  />
+                  <InputGroup>
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      borderColor={borderColor}
+                      color={textColor}
+                    />
+                    <InputRightElement width="4.5rem">
+                      <Button
+                        h="1.75rem"
+                        size="sm"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                      </Button>
+                    </InputRightElement>
+                  </InputGroup>
                 </FormControl>
+
                 <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel color={textColor}>Confirm Password</FormLabel>
-                  <Input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    borderColor={borderColor}
-                    color={textColor}
-                  />
+                  <InputGroup>
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      borderColor={borderColor}
+                      color={textColor}
+                    />
+                    <InputRightElement width="4.5rem">
+                      <Button
+                        h="1.75rem"
+                        size="sm"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <ViewOffIcon /> : <ViewIcon />}
+                      </Button>
+                    </InputRightElement>
+                  </InputGroup>
                   {passwordError && (
                     <FormErrorMessage>{passwordError}</FormErrorMessage>
                   )}
                 </FormControl>
+
                 <Button
                   type="submit"
                   colorScheme="blue"
@@ -261,6 +339,7 @@ function SignupPage() {
                   fontSize="md"
                   isLoading={isLoading}
                   loadingText="Creating account..."
+                  w="full"
                 >
                   Create Account & Continue to Payment
                 </Button>

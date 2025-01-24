@@ -219,7 +219,7 @@ export default function CheckoutPage() {
   const plans = [
     {
       id: 'single_user',
-      name: 'Basic',
+      name: 'Single User',
       monthlyPrice: '49.99',
       yearlyPrice: '539.89',
       features: [

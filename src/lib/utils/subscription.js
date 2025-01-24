@@ -1,43 +1,68 @@
 import supabase from '@/lib/supabaseClient';
 
 /**
- * Creates a new subscription record in the database.
+ * Fetches the subscription status from the profiles table.
  *
- * @param {string} stripeSubscriptionId - The Stripe subscription ID.
- * @param {object} otherSubscriptionData - An object containing other subscription data.
- * @returns {Promise<object|null>} - A promise that resolves to the created subscription data or null if an error occurs.
+ * @param {string} userId - The user ID.
+ * @returns {Promise<object|null>} - A promise that resolves to the subscription data or an error object.
  */
-export async function createSubscription(stripeSubscriptionId, otherSubscriptionData = {}) {
+export async function getSubscriptionFromProfile(userId) {
   try {
-    // 1. Get the current user
-    const { data: user, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      console.error("Error getting user:", userError);
-      return null; // Return null to indicate failure
+    // 1. Fetch the user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('subscription_status, subscription_tier, subscription_period_end, stripe_subscription_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      return { error: "Error fetching profile", details: profileError };
     }
-    if (!user) {
-      console.error("No user found");
-      return null; // Return null to indicate failure
+
+    if (!profile) {
+      console.error("No profile found for user:", userId);
+      return { error: "No profile found for user" };
     }
-    // 2. Insert subscription data with the user ID
-    const { data: subscriptionData, error: subscriptionError } = await supabase
-      .from('subscriptions')
-      .insert({
-        user_id: user.id, // Automatically populate user_id
-        stripe_subscription_id: stripeSubscriptionId,
-        status: 'active', // Default status
-        ...otherSubscriptionData, // Spread other subscription data
+
+    console.log("Subscription fetched from profile:", profile);
+    return profile; // Return the profile data
+  } catch (error) {
+    console.error("Error fetching subscription from profile:", error);
+    return { error: "Error fetching subscription from profile", details: error };
+  }
+}
+
+
+/**
+ * Updates the subscription record in the profiles table.
+ *
+ * @param {string} userId - The user ID.
+ * @param {object} subscriptionData - An object containing subscription data.
+ * @returns {Promise<object|null>} - A promise that resolves to the updated profile data or an error object.
+ */
+export async function updateSubscriptionInProfile(userId, subscriptionData = {}) {
+  try {
+    // 1. Update subscription data in the profiles table
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        ...subscriptionData, // Spread subscription data
+        updated_at: new Date().toISOString(),
       })
+      .eq('user_id', userId)
       .select()
       .single();
-    if (subscriptionError) {
-      console.error("Error inserting subscription:", subscriptionError);
-      return null; // Return null to indicate failure
+
+    if (profileError) {
+      console.error("Error updating profile:", profileError);
+      return { error: "Error updating profile", details: profileError };
     }
-    console.log("Subscription created:", subscriptionData);
-    return subscriptionData; // Return the created subscription data
+
+    console.log("Subscription updated in profile:", profileData);
+    return profileData; // Return the updated profile data
   } catch (error) {
-    console.error("Error creating subscription:", error);
-    return null; // Return null to indicate failure
+    console.error("Error updating subscription in profile:", error);
+    return { error: "Error updating subscription in profile", details: error };
   }
 }
