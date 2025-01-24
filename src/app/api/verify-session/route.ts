@@ -13,41 +13,64 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get('session_id');
 
+  if (!sessionId) {
+    console.error('Session verification error: No session ID provided');
+    return NextResponse.json({ error: 'No session ID provided' }, { status: 400 });
+  }
+
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription', 'customer']
+      expand: ['subscription', 'customer'],
     });
 
-    const subscription = session.subscription as Stripe.Subscription;
-    const tier = session.metadata?.tier || subscription.metadata?.tier || 'single_user';
-    const customerId = session.customer as string;
-
-    // Fetch user profile from Supabase
-    const { data: userData } = await supabase.auth.getUser();
-    let profile;
-    if (userData?.user) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userData.user.id)
-        .single();
-      if (error) {
-        console.error('Error fetching profile:', error);
-      } else {
-        profile = data;
-      }
+    if (!session) {
+      console.error('Session verification error: Session not found for ID:', sessionId);
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
+
+    const subscription = session.subscription as Stripe.Subscription;
+    if (!subscription) {
+      console.error('Session verification error: No subscription found for session ID:', sessionId);
+      return NextResponse.json({ error: 'No subscription found' }, { status: 400 });
+    }
+
+    const customerId = session.customer as string;
+    if (!customerId) {
+      console.error('Session verification error: No customer ID found for session ID:', sessionId);
+      return NextResponse.json({ error: 'No customer ID found' }, { status: 400 });
+    }
+
+    const priceId = subscription.items.data[0].price.id;
+    if (!priceId) {
+      console.error('Session verification error: No price ID found for session ID:', sessionId);
+      return NextResponse.json({ error: 'No price ID found' }, { status: 400 });
+    }
+
+    const price = await stripe.prices.retrieve(priceId);
+    if (!price) {
+      console.error('Session verification error: Price not found for price ID:', priceId);
+      return NextResponse.json({ error: 'Price not found' }, { status: 404 });
+    }
+
+    const product = await stripe.products.retrieve(price.product as string);
+    if (!product) {
+      console.error('Session verification error: Product not found for product ID:', price.product);
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    const planName = product.name;
+    const planInterval = price.recurring?.interval;
+    const planAmount = price.unit_amount;
 
     console.log('Verify Session Response:', {
       status: subscription.status,
       customerId,
       subscriptionId: subscription.id,
       plan: {
-        name: tier,
-        interval: subscription.items.data[0].plan.interval,
-        amount: subscription.items.data[0].plan.amount
+        name: planName,
+        interval: planInterval,
+        amount: planAmount,
       },
-      profile
     });
 
     return NextResponse.json({
@@ -55,11 +78,10 @@ export async function GET(req: Request) {
       customerId,
       subscriptionId: subscription.id,
       plan: {
-        name: tier,
-        interval: subscription.items.data[0].plan.interval,
-        amount: subscription.items.data[0].plan.amount
+        name: planName,
+        interval: planInterval,
+        amount: planAmount,
       },
-      profile
     });
   } catch (error) {
     console.error('Session verification error:', error);

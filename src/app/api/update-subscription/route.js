@@ -15,29 +15,20 @@ export async function POST(req) {
   try {
     const {
       userId,
-      planId,
-      subscriptionId,
-      customerId,
+      planType,
       billingCycle,
-      additionalUsers,
     } = await req.json();
 
     console.log(
       'Updating subscription for userId:',
       userId,
-      'planId:',
-      planId,
-      'subscriptionId:',
-      subscriptionId,
-      'customerId:',
-      customerId,
+      'planType:',
+      planType,
       'billingCycle:',
-      billingCycle,
-      'additionalUsers:',
-      additionalUsers
+      billingCycle
     );
 
-    if (!userId || !planId || !subscriptionId || !customerId) {
+    if (!userId || !planType) {
       console.error('Missing required parameters');
       return NextResponse.json(
         { error: 'Missing required parameters' },
@@ -47,6 +38,7 @@ export async function POST(req) {
 
     let subscriptionPeriodEnd;
     const now = new Date();
+
     if (billingCycle === 'monthly') {
       subscriptionPeriodEnd = new Date(now.setMonth(now.getMonth() + 1));
     } else if (billingCycle === 'yearly') {
@@ -59,12 +51,7 @@ export async function POST(req) {
     const { data, error } = await supabase
       .from('profiles')
       .update({
-        subscription_status: 'active',
-        stripe_customer_id: customerId,
-        subscription_tier: planId,
-        stripe_subscription_id: subscriptionId,
-        billing_cycle: billingCycle,
-        additional_users: additionalUsers,
+        subscription_tier: planType,
         subscription_period_end: subscriptionPeriodEnd
           ? subscriptionPeriodEnd.toISOString()
           : null,

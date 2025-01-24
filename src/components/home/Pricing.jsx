@@ -1,4 +1,5 @@
 'use client'
+
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
@@ -86,7 +87,7 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
             {features.map((feature, index) => (
               <ListItem key={index}>
                 <ListIcon as={CheckIcon} color={customTheme.colors.primary.main} />
-                {feature}
+                {feature.text} {/* Access the text property */}
               </ListItem>
             ))}
           </List>
@@ -103,7 +104,7 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
               Get Started
             </Button>
             <Text fontSize="sm" color={useColorModeValue('neutral.600', 'neutral.400')}>
-             Start your 7-day free trial today
+              Start your 7-day free trial today
             </Text>
           </Stack>
         </Stack>
@@ -114,7 +115,7 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
 
 export default function Pricing() {
   const [isYearly, setIsYearly] = useState(false)
-  
+
   const plans = [
     {
       title: 'Single User',
@@ -174,9 +175,9 @@ export default function Pricing() {
           justify="center"
         >
           {plans.map((plan, index) => (
-            <PriceCard 
-              key={index} 
-              {...plan} 
+            <PriceCard
+              key={index}
+              {...plan}
               isYearly={isYearly}
             />
           ))}

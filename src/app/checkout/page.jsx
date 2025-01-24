@@ -28,6 +28,7 @@ import { motion } from 'framer-motion';
 import { MdStar, MdStarBorder } from 'react-icons/md';
 import supabase from '@/lib/supabaseClient';
 import { createCheckoutSession } from '@/utils/payments';
+import { subscriptionPlans } from '@/config/plans'; // Import plan data
 
 const PricingCard = ({
   plan,
@@ -100,7 +101,7 @@ const PricingCard = ({
                   as={feature.included ? MdStar : MdStarBorder}
                   color={feature.included ? 'blue.400' : 'gray.400'}
                 />
-                <Text>{feature.text}</Text>
+                <Text>{feature.text}</Text> {/* Access the text property */}
               </Stack>
             ))}
           </VStack>
@@ -138,13 +139,13 @@ const PricingCard = ({
   );
 };
 
+
 export default function CheckoutPage() {
   const router = useRouter();
   const toast = useToast();
   const [isYearly, setIsYearly] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [additionalUsers, setAdditionalUsers] = useState({});
-  const [userId, setUserId] = useState(null);
   const [session, setSession] = useState(null);
   const searchParams = useSearchParams();
   const planType = searchParams.get('tier') || 'single_user';
@@ -154,111 +155,63 @@ export default function CheckoutPage() {
       const { data: { session: supabaseSession } } = await supabase.auth.getSession();
       if (supabaseSession) {
         setSession(supabaseSession);
-        setUserId(supabaseSession.user.id);
       }
     };
     fetchSession();
   }, []);
 
   const handlePlanSelection = async (plan) => {
-  try {
-    setIsLoading(true);
-    
-    // Get the current session
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    
-    if (!userId) {
+    try {
+      setIsLoading(true);
+
+      if (!session?.user?.id) {
+        toast({
+          title: 'Authentication Required',
+          description: 'Please sign in to continue',
+          status: 'info',
+          duration: 5000,
+          isClosable: true,
+        });
+        router.push('/auth');
+        return;
+      }
+
+      const checkoutData = {
+        planId: plan.id,
+        isYearly,
+        additionalUsers: Number(additionalUsers[plan.name] || 0),
+        userId: session.user.id,
+      };
+
+      const checkoutSession = await createCheckoutSession(
+        checkoutData.planId,
+        checkoutData.isYearly,
+        checkoutData.additionalUsers,
+        checkoutData.userId
+      );
+
+      if (checkoutSession?.url) {
+        window.location.href = checkoutSession.url;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
       toast({
-        title: 'Authentication Required',
-        description: 'Please sign in to continue',
-        status: 'info',
+        title: 'Checkout Error',
+        description: 'Please try selecting your plan again',
+        status: 'error',
         duration: 5000,
         isClosable: true,
       });
-      router.push('/auth');
-      return;
+    } finally {
+      setIsLoading(false);
     }
-
-    const checkoutData = {
-      planId: plan.id,
-      isYearly,
-      additionalUsers: Number(additionalUsers[plan.name] || 0),
-      userId
-    };
-
-    const checkoutSession = await createCheckoutSession(
-      checkoutData.planId,
-      checkoutData.isYearly,
-      checkoutData.additionalUsers,
-      userId  // Pass userId here
-    );
-
-    if (checkoutSession?.url) {
-      window.location.href = checkoutSession.url;
-    }
-  } catch (error) {
-    console.error('Checkout error:', error);
-    toast({
-      title: 'Checkout Error',
-      description: 'Please try selecting your plan again',
-      status: 'error',
-      duration: 5000,
-      isClosable: true,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+  };
 
   const handleAdditionalUsersChange = (planName, value) => {
     setAdditionalUsers((prev) => ({ ...prev, [planName]: value }));
   };
 
-  const plans = [
-    {
-      id: 'single_user',
-      name: 'Single User',
-      monthlyPrice: '49.99',
-      yearlyPrice: '539.89',
-      features: [
-        { text: 'Lead Management', included: true },
-        { text: 'Property Tracking', included: true },
-        { text: 'Basic Analytics', included: true },
-        { text: 'Email Support', included: true },
-      ],
-    },
-    {
-      id: 'team',
-      name: 'Team',
-      monthlyPrice: '99.99',
-      yearlyPrice: '1,079.89',
-      additionalUserPrice: 10.00,
-      isPopular: true,
-      features: [
-        { text: 'Everything in Basic', included: true },
-        { text: 'Team Collaboration', included: true },
-        { text: 'Advanced Analytics', included: true },
-        { text: 'Priority Support', included: true },
-        { text: 'Additional Users ($10/month each)', included: true },
-      ],
-    },
-    {
-      id: 'corporate',
-      name: 'Corporate',
-      monthlyPrice: '195.99',
-      yearlyPrice: '2,116.99',
-      additionalUserPrice: 7.99,
-      features: [
-        { text: 'Everything in Team', included: true },
-        { text: 'Custom Integration', included: true },
-        { text: 'Dedicated Account Manager', included: true },
-        { text: '24/7 Phone Support', included: true },
-        { text: 'Additional Users ($7.99/month each)', included: true },
-      ],
-    },
-  ];
+  const plans = Object.values(subscriptionPlans); // Use imported plan data
 
   return (
     <Container maxW="7xl" py={20}>
@@ -293,7 +246,7 @@ export default function CheckoutPage() {
               features={plan.features}
               monthlyPrice={plan.monthlyPrice}
               yearlyPrice={plan.yearlyPrice}
-              isPopular={plan.isPopular}
+              isPopular={plan.popular}
               isYearly={isYearly}
               onSelect={handlePlanSelection}
               additionalUsers={additionalUsers[plan.name] || 0}

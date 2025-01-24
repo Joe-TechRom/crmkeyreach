@@ -48,6 +48,7 @@ const SignInContent = () => {
     const handleRedirect = async () => {
       if (!userLoading && user) {
         setRedirecting(true);
+
         // Fetch user profile and redirect
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -67,7 +68,7 @@ const SignInContent = () => {
           return;
         }
 
-        if (profile?.subscription_status === 'active') {
+        if (profile?.subscription_status === 'active' && profile?.subscription_tier) {
           router.push(`/dashboard/${profile.subscription_tier}`);
         } else {
           router.push('/pricing');
@@ -75,6 +76,7 @@ const SignInContent = () => {
         setRedirecting(false);
       }
     };
+
     handleRedirect();
   }, [user, userLoading, router, toast]);
 
@@ -145,6 +147,7 @@ const SignInContent = () => {
           setIsLoading(false);
           return;
         }
+
         // Fetch user profile and redirect
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -164,7 +167,7 @@ const SignInContent = () => {
           return;
         }
 
-        if (profile?.subscription_status === 'active') {
+        if (profile?.subscription_status === 'active' && profile?.subscription_tier) {
           router.push(`/dashboard/${profile.subscription_tier}`);
         } else {
           router.push('/pricing');
@@ -226,144 +229,144 @@ const SignInContent = () => {
               borderWidth="1px"
               borderColor="gray.100"
               _hover={{ transform: 'translateY(-5px)', shadow: '2xl' }}
-                 transition="all 0.3s"
-               >
-                 <VStack spacing={6}>
-                   <VStack spacing={4}>
-                     <Heading size="lg">Sign In</Heading>
-                     <Text color={textColor}>
-                       Access your workspace securely
-                     </Text>
-                   </VStack>
-                   <form onSubmit={handleEmailSignIn} style={{ width: '100%' }}>
-                     <VStack spacing={4}>
-                       <FormControl isRequired>
-                         <FormLabel>Email</FormLabel>
-                         <Input
-                           type="email"
-                           value={email}
-                           onChange={(e) => setEmail(e.target.value)}
-                         />
-                       </FormControl>
-                       <FormControl isRequired>
-                         <FormLabel>Password</FormLabel>
-                         <Input
-                           type="password"
-                           value={password}
-                           onChange={(e) => setPassword(e.target.value)}
-                         />
-                         <Flex justify="flex-end" mt={2}>
-                           <Button
-                             variant="link"
-                             color="blue.400"
-                             size="sm"
-                             onClick={() => router.push('/auth/reset-password')}
-                           >
-                             Forgot Password?
-                           </Button>
-                         </Flex>
-                       </FormControl>
-                       <Button
-                         type="submit"
-                         w="full"
-                         size="lg"
-                         colorScheme="blue"
-                         isLoading={isLoading}
-                         loadingText="Signing in..."
-                       >
-                         Sign in with Email
-                       </Button>
-                     </VStack>
-                   </form>
-                   <HStack w="full">
-                     <Divider />
-                     <Text fontSize="sm" whiteSpace="nowrap" color={textColor}>
-                       or continue with
-                     </Text>
-                     <Divider />
-                   </HStack>
-                   <Button
-                     w="full"
-                     size="lg"
-                     onClick={handleGoogleSignIn}
-                     leftIcon={<FcGoogle />}
-                     variant="outline"
-                     isLoading={isLoading}
-                     loadingText="Signing in..."
-                   >
-                     Google
-                   </Button>
-                 </VStack>
-               </Box>
-             </MotionBox>
-             <MotionBox
-               initial={{ opacity: 0, x: 50 }}
-               animate={{ opacity: 1, x: 0 }}
-               transition={{ duration: 0.5, delay: 0.4 }}
-               w={{ base: 'full', lg: '50%' }}
-             >
-               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-                 {features.map((feature, index) => (
-                   <Box
-                     key={index}
-                     p={6}
-                     bg={bgColor}
-                     rounded="xl"
-                     shadow="lg"
-                     _hover={{ transform: 'translateY(-5px)', shadow: 'xl' }}
-                     transition="all 0.3s"
-                   >
-                     <VStack align="start" spacing={4}>
-                       <Circle size="40px" bg="blue.50">
-                         <Icon as={feature.icon} w={5} h={5} color="blue.500" />
-                       </Circle>
-                       <VStack align="start" spacing={2}>
-                         <Text fontWeight="bold">{feature.title}</Text>
-                         <Text color={textColor} fontSize="sm">
-                           {feature.description}
-                         </Text>
-                       </VStack>
-                     </VStack>
-                   </Box>
-                 ))}
-               </SimpleGrid>
-             </MotionBox>
-           </Flex>
-         </Stack>
-         {redirecting && (
-           <Box
-             position="fixed"
-             top="0"
-             left="0"
-             right="0"
-             bottom="0"
-             display="flex"
-             alignItems="center"
-             justifyContent="center"
-             backgroundColor="rgba(0, 0, 0, 0.5)"
-             zIndex="9999"
-           >
-             <Spinner size="xl" color="white" />
-           </Box>
-         )}
-       </Container>
-     );
-   };
+              transition="all 0.3s"
+            >
+              <VStack spacing={6}>
+                <VStack spacing={4}>
+                  <Heading size="lg">Sign In</Heading>
+                  <Text color={textColor}>
+                    Access your workspace securely
+                  </Text>
+                </VStack>
+                <form onSubmit={handleEmailSignIn} style={{ width: '100%' }}>
+                  <VStack spacing={4}>
+                    <FormControl isRequired>
+                      <FormLabel>Email</FormLabel>
+                      <Input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormControl isRequired>
+                      <FormLabel>Password</FormLabel>
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <Flex justify="flex-end" mt={2}>
+                        <Button
+                          variant="link"
+                          color="blue.400"
+                          size="sm"
+                          onClick={() => router.push('/auth/reset-password')}
+                        >
+                          Forgot Password?
+                        </Button>
+                      </Flex>
+                    </FormControl>
+                    <Button
+                      type="submit"
+                      w="full"
+                      size="lg"
+                      colorScheme="blue"
+                      isLoading={isLoading}
+                      loadingText="Signing in..."
+                    >
+                      Sign in with Email
+                    </Button>
+                  </VStack>
+                </form>
+                <HStack w="full">
+                  <Divider />
+                  <Text fontSize="sm" whiteSpace="nowrap" color={textColor}>
+                    or continue with
+                  </Text>
+                  <Divider />
+                </HStack>
+                <Button
+                  w="full"
+                  size="lg"
+                  onClick={handleGoogleSignIn}
+                  leftIcon={<FcGoogle />}
+                  variant="outline"
+                  isLoading={isLoading}
+                  loadingText="Signing in..."
+                >
+                  Google
+                </Button>
+              </VStack>
+            </Box>
+          </MotionBox>
+          <MotionBox
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            w={{ base: 'full', lg: '50%' }}
+          >
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+              {features.map((feature, index) => (
+                <Box
+                  key={index}
+                  p={6}
+                  bg={bgColor}
+                  rounded="xl"
+                  shadow="lg"
+                  _hover={{ transform: 'translateY(-5px)', shadow: 'xl' }}
+                  transition="all 0.3s"
+                >
+                  <VStack align="start" spacing={4}>
+                    <Circle size="40px" bg="blue.50">
+                      <Icon as={feature.icon} w={5} h={5} color="blue.500" />
+                    </Circle>
+                    <VStack align="start" spacing={2}>
+                      <Text fontWeight="bold">{feature.title}</Text>
+                      <Text color={textColor} fontSize="sm">
+                        {feature.description}
+                      </Text>
+                    </VStack>
+                  </VStack>
+                </Box>
+              ))}
+            </SimpleGrid>
+          </MotionBox>
+        </Flex>
+      </Stack>
+      {redirecting && (
+        <Box
+          position="fixed"
+          top="0"
+          left="0"
+          right="0"
+          bottom="0"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          backgroundColor="rgba(0, 0, 0, 0.5)"
+          zIndex="9999"
+        >
+          <Spinner size="xl" color="white" />
+        </Box>
+      )}
+    </Container>
+  );
+};
 
-   export default function SignIn() {
-     return (
-       <Suspense
-         fallback={
-           <Container maxW="7xl" py={20}>
-             <VStack spacing={16}>
-               <Stack spacing={8} textAlign="center">
-                 <Heading size="2xl">Loading...</Heading>
-               </Stack>
-             </VStack>
-           </Container>
-         }
-       >
-         <SignInContent />
-       </Suspense>
-     );
-   }
+export default function SignIn() {
+  return (
+    <Suspense
+      fallback={
+        <Container maxW="7xl" py={20}>
+          <VStack spacing={16}>
+            <Stack spacing={8} textAlign="center">
+              <Heading size="2xl">Loading...</Heading>
+            </Stack>
+          </VStack>
+        </Container>
+      }
+    >
+      <SignInContent />
+    </Suspense>
+  );
+}

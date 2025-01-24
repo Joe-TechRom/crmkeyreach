@@ -16,10 +16,10 @@ export async function GET() {
 
     if (!user) {
       console.warn('No user found in session.');
-      return NextResponse.json({ status: null, userId: null }); // Or handle as appropriate
+      return NextResponse.json({ error: 'No user found' }, { status: 401 });
     }
 
-    console.log('Current user ID:', user.id); // ADDED LOGGING
+    console.log('Current user ID:', user.id);
 
     // Get subscription status from profiles
     const { data: profile, error: profileError } = await supabase
@@ -35,14 +35,14 @@ export async function GET() {
 
     if (!profile) {
       console.warn('No profile found for user ID:', user.id);
-      return NextResponse.json({ status: null, userId: user.id }); // Or handle as appropriate
+      return NextResponse.json({ error: 'No profile found' }, { status: 404 });
     }
 
-    console.log('Subscription status for user', user.id, ':', profile.subscription_status); // ADDED LOGGING
+    console.log('Subscription status for user', user.id, ':', profile.subscription_status);
 
     return NextResponse.json({
       status: profile.subscription_status,
-      userId: user.id
+      userId: user.id,
     });
   } catch (error) {
     console.error('Failed to check subscription status:', error);

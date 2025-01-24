@@ -113,13 +113,11 @@ export default function SuccessPage() {
 
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
         if (sessionError) {
           logError('Session error:', sessionError.message, sessionError);
           router.push('/auth');
           return;
         }
-
         if (!session) {
           router.push('/auth');
           return;
@@ -141,10 +139,35 @@ export default function SuccessPage() {
           return;
         }
 
+        // Fetch session from Stripe (server-side)
+        const res = await fetch('/api/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ session_id: sessionId, getSession: true }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('Error fetching Stripe session:', errorData);
+          toast({
+            title: 'Error Verifying Session',
+            description: errorData.error || 'Failed to fetch session details.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+            position: 'top',
+          });
+          return;
+        }
+
+        const { planName, billingCycle } = await res.json();
+
         const sessionData: SessionData = {
           plan: {
-            name: profile.subscription_tier || 'Basic',
-            interval: profile.billing_cycle || 'monthly',
+            name: planName || 'Basic',
+            interval: billingCycle || 'monthly',
             amount: 0, // Amount is not available in profile
           },
           status: profile.subscription_status || 'active',
@@ -153,8 +176,8 @@ export default function SuccessPage() {
           },
           metadata: {
             userId: userId,
-            planId: profile.subscription_tier,
-            billingCycle: profile.billing_cycle || 'monthly',
+            planId: planName,
+            billingCycle: billingCycle || 'monthly',
             additionalUsers: profile.additional_users?.toString() || '0',
           },
         };

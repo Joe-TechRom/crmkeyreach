@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import {
   Box,
@@ -15,60 +15,62 @@ import {
   NumberInputStepper,
   NumberIncrementStepper,
   NumberDecrementStepper,
-  useToast
-} from '@chakra-ui/react'
-import { MdCheckCircle } from 'react-icons/md'
-import { createCheckoutSession } from '@/utils/stripe'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+  useToast,
+  useColorModeValue, // Import useColorModeValue
+} from '@chakra-ui/react';
+import { MdCheckCircle } from 'react-icons/md';
+import { createCheckoutSession } from '@/utils/payments';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-export const PlanCard = ({ 
-  plan, 
-  isSelected, 
-  isYearly, 
-  onSelect, 
-  additionalUsers, 
-  onUpdateUsers 
+export const PlanCard = ({
+  plan,
+  isSelected,
+  isYearly,
+  onSelect,
+  additionalUsers,
+  onUpdateUsers,
+  calculateTotalPrice,
 }) => {
-  const supabase = createClientComponentClient()
-  const toast = useToast()
-  const price = isYearly ? plan.price.yearly : plan.price.monthly
-  const totalPrice = plan.additionalUserPrice 
-    ? price + (additionalUsers * plan.additionalUserPrice)
-    : price
+  const supabase = createClientComponentClient();
+  const toast = useToast();
+  const totalPrice = calculateTotalPrice(plan, isYearly, additionalUsers);
+  const cardBg = useColorModeValue(isSelected ? 'blue.50' : 'white', isSelected ? 'blue.700' : 'gray.700'); // Use useColorModeValue for background
+  const textColor = useColorModeValue('gray.700', 'whiteAlpha.900'); // Use useColorModeValue for text color
 
   const handleSubscribe = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
+    const { data: { user } } = await supabase.auth.getUser();
+
     if (!user) {
       toast({
         title: 'Please sign in first',
         status: 'warning',
         duration: 5000,
-      })
-      return
+      });
+      return;
     }
 
     try {
       await createCheckoutSession(
-        isYearly ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly,
-        user.id,
-        additionalUsers
-      )
+        plan.id,
+        isYearly,
+        additionalUsers,
+        user.id
+      );
     } catch (error) {
       toast({
         title: 'Error creating checkout session',
         status: 'error',
         duration: 5000,
-      })
+      });
     }
-  }
+  };
 
   return (
     <Box
       borderWidth="1px"
       borderRadius="xl"
       p={6}
-      bg={isSelected ? 'blue.50' : 'white'}
+      bg={cardBg} // Use dynamic background
       position="relative"
       transition="all 0.2s"
       _hover={{ transform: 'translateY(-4px)', shadow: 'xl' }}
@@ -86,18 +88,16 @@ export const PlanCard = ({
           Most Popular
         </Badge>
       )}
-
       <Stack spacing={4}>
-        <Heading size="lg">{plan.name}</Heading>
+        <Heading size="lg" color={textColor}>{plan.name}</Heading> {/* Use dynamic text color */}
         <Stack direction="row" align="flex-end">
-          <Text fontSize="4xl" fontWeight="bold">
+          <Text fontSize="4xl" fontWeight="bold" color={textColor}> {/* Use dynamic text color */}
             ${totalPrice}
           </Text>
           <Text color="gray.500">
             /{isYearly ? 'year' : 'month'}
           </Text>
         </Stack>
-
         {plan.additionalUserPrice && (
           <Stack spacing={2}>
             <Text fontSize="sm" color="gray.500">
@@ -120,16 +120,14 @@ export const PlanCard = ({
             </Text>
           </Stack>
         )}
-
         <List spacing={3}>
           {plan.features.map((feature, index) => (
             <ListItem key={index} display="flex" alignItems="center">
               <ListIcon as={MdCheckCircle} color="green.500" />
-              <Text>{feature}</Text>
+              <Text color={textColor}>{feature.text}</Text> {/* Use dynamic text color */}
             </ListItem>
           ))}
         </List>
-
         <Button
           colorScheme="blue"
           size="lg"
@@ -140,5 +138,5 @@ export const PlanCard = ({
         </Button>
       </Stack>
     </Box>
-  )
-}
+  );
+};

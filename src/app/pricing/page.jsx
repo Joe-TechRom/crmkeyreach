@@ -26,6 +26,9 @@ import {
 } from 'react-icons/md';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { calculatePrice } from '@/utils/pricing'; // Import price calculation
+import { subscriptionPlans } from '@/config/plans'; // Import plan data
+import { PlanCard } from '@/components/pricing/PlanCard'; // Corrected import path
 
 const shimmer = keyframes`
   from {background-position: 0 0;}
@@ -51,6 +54,7 @@ const MotionText = motion(Text);
 function PricingPage() {
   const router = useRouter();
   const [isYearly, setIsYearly] = useState(false);
+  const [additionalUsers, setAdditionalUsers] = useState(0); // Initialize additionalUsers state
   const yearlyDiscount = 0.10;
   const bgGradient = useColorModeValue(
     'radial-gradient(circle at 0% 0%, rgba(0, 102, 255, 0.1) 0%, transparent 30%), radial-gradient(circle at 100% 100%, rgba(91, 142, 239, 0.1) 0%, transparent 30%)',
@@ -59,17 +63,20 @@ function PricingPage() {
   const cardBg = useColorModeValue('white', 'whiteAlpha.100');
   const textColor = useColorModeValue('neutral.800', 'whiteAlpha.900');
 
- const handleStartTrial = async (planId) => {
-  router.push(`/auth/signup?tier=${planId}`);
-};
+  const handleStartTrial = async (planId) => {
+    router.push(`/auth/signup?tier=${planId}`);
+  };
 
+  const calculateTotalPrice = (plan, isYearly, additionalUsers) => {
+    if (!plan) return 0; // Handle cases where plan is undefined
+    const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
+    return plan.additionalUserPrice
+      ? parseFloat(price) + (additionalUsers * plan.additionalUserPrice)
+      : parseFloat(price);
+  };
 
-  const calculatePrice = (monthlyPrice) => {
-    if (isYearly) {
-      const yearlyPrice = monthlyPrice * 12 * (1 - yearlyDiscount);
-      return [Number((yearlyPrice / 12).toFixed(2)), Number(yearlyPrice.toFixed(2))];
-    }
-    return [Number(monthlyPrice), Number((monthlyPrice * 12).toFixed(2))];
+  const handleUpdateUsers = (value) => {
+    setAdditionalUsers(value);
   };
 
   const features = [
@@ -95,193 +102,7 @@ function PricingPage() {
     },
   ];
 
-  const pricingPlans = [
-    {
-      name: 'Single User',
-      price: 49.99,
-      id: 'single_user',
-      features: [
-        'All core CRM features',
-        'Lead CRUD operations',
-        'Lead stage tracking',
-        'Property tracking',
-        'Ad creation tools',
-        'Multi-platform posting',
-        'Email integration',
-        'Basic reporting',
-        'Social Media Integration',
-      ],
-    },
-    {
-      name: 'Team',
-      price: 99.99,
-      id: 'team',
-      popular: true,
-      features: [
-        'Everything in Single User, plus:',
-        'Up to 20 team members',
-        'Team member assignment',
-        'Team collaboration tools',
-        'Performance analytics',
-        'Advanced reporting',
-        'API access',
-        'Priority support',
-        '$10/month per additional user',
-      ],
-    },
-    {
-      name: 'Corporate',
-      price: 195.99,
-      id: 'corporate',
-      features: [
-        'Everything in Team, plus:',
-        'Up to 150 team members',
-        'Enterprise-grade security',
-        'Custom integrations',
-        'Dedicated account manager',
-        'Custom analytics dashboard',
-        'White-label options',
-        'SLA guarantees',
-        'Premium support 24/7',
-        'Onboarding assistance',
-        '$7.99/month per additional user',
-      ],
-    },
-  ];
-
-  const PricingCard = ({ plan, isYearly, monthlyPrice, yearlyPrice, isPopular }) => {
-    const glassEffect = {
-      backgroundColor: useColorModeValue(
-        'rgba(255, 255, 255, 0.9)',
-        'rgba(26, 32, 44, 0.8)'
-      ),
-      backdropFilter: 'blur(10px)',
-      borderWidth: '1px',
-      borderColor: useColorModeValue('gray.200', 'whiteAlpha.100'),
-    };
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -8, scale: 1.02 }}
-        transition={{ duration: 0.5 }}
-        viewport={{ once: true }}
-      >
-        <Box
-          {...glassEffect}
-          rounded="2xl"
-          overflow="hidden"
-          position="relative"
-          borderWidth={isPopular ? '2px' : '1px'}
-          borderColor={isPopular ? 'blue.400' : 'transparent'}
-          shadow="xl"
-          _hover={{ shadow: '2xl' }}
-          transition="all 0.3s"
-        >
-          {isPopular && (
-            <Badge
-              position="absolute"
-              top={4}
-              right={4}
-              colorScheme="blue"
-              variant="solid"
-              rounded="full"
-              px={3}
-              py={1}
-            >
-              Most Popular
-            </Badge>
-          )}
-          <Box p={8}>
-            <Stack spacing={6}>
-              <Stack spacing={4}>
-                <Heading size="lg" color={textColor}>
-                  {plan.name}
-                </Heading>
-                <Stack direction="row" align="flex-start" spacing={2}>
-                  <Text
-                    fontSize="5xl"
-                    fontWeight="900"
-                    color={textColor}
-                    lineHeight="1"
-                  >
-                    ${monthlyPrice.toFixed(2)}
-                  </Text>
-                  <Stack spacing={0}>
-                    <Text color={textColor} pt={2}>
-                      /month
-                    </Text>
-                    {isYearly && (
-                      <Text color="green.500" fontSize="sm">
-                        ${yearlyPrice.toFixed(2)}/year
-                      </Text>
-                    )}
-                  </Stack>
-                </Stack>
-              </Stack>
-              <Box
-                h="1px"
-                bgGradient="linear(to-r, transparent, blue.200, transparent)"
-                opacity={0.5}
-              />
-              <Stack spacing={4}>
-                {plan.features.map((feature, idx) => (
-                  <Stack
-                    key={idx}
-                    direction="row"
-                    spacing={4}
-                    align="center"
-                    _hover={{ bg: useColorModeValue('blue.50', 'whiteAlpha.100') }}
-                    p={2}
-                    rounded="md"
-                    transition="all 0.2s"
-                  >
-                    <Icon
-                      as={MdCheckCircle}
-                      color={isPopular ? 'blue.400' : 'green.500'}
-                      w={5}
-                      h={5}
-                    />
-                    <Text color={textColor}>{feature}</Text>
-                  </Stack>
-                ))}
-              </Stack>
-              <Stack spacing={3}>
-                <Button
-                  size="lg"
-                  onClick={() => handleStartTrial(plan.id)}
-                  w="full"
-                  py={7}
-                  bgGradient={
-                    isPopular
-                      ? 'linear(135deg, #0066FF 0%, #5B8DEF 100%)'
-                      : 'none'
-                  }
-                  color={isPopular ? 'white' : 'blue.400'}
-                  variant={isPopular ? 'solid' : 'outline'}
-                  borderColor={isPopular ? 'none' : 'blue.400'}
-                  _hover={{
-                    transform: 'translateY(-2px)',
-                    shadow: 'xl',
-                    bgGradient: isPopular
-                      ? 'linear(135deg, #0052CC 0%, #4B7BE0 100%)'
-                      : 'none',
-                    bg: !isPopular && 'blue.50',
-                  }}
-                >
-                  Signup now
-                </Button>
-                <Text fontSize="sm" color="gray.500" textAlign="center">
-                  No commitment required
-                </Text>
-              </Stack>
-            </Stack>
-          </Box>
-        </Box>
-      </motion.div>
-    );
-  };
+  const plans = Object.values(subscriptionPlans); // Use imported plan data
 
   const FeatureCard = ({ icon: FeatureIcon, title, description }) => {
     const glassEffect = {
@@ -421,16 +242,21 @@ function PricingPage() {
               spacing={{ base: 8, lg: 12 }}
               w="full"
             >
-              {pricingPlans.map((plan) => {
-                const [monthlyPrice, yearlyPrice] = calculatePrice(plan.price);
+              {plans.map((plan) => {
+                const [monthlyPrice, yearlyPrice] = calculatePrice(
+                  plan.monthlyPrice,
+                  isYearly,
+                  yearlyDiscount
+                );
                 return (
-                  <PricingCard
+                  <PlanCard
                     key={plan.id}
                     plan={plan}
                     isYearly={isYearly}
-                    monthlyPrice={monthlyPrice}
-                    yearlyPrice={yearlyPrice}
-                    isPopular={plan.popular}
+                    onSelect={handleStartTrial}
+                    calculateTotalPrice={calculateTotalPrice}
+                    additionalUsers={additionalUsers}
+                    onUpdateUsers={handleUpdateUsers}
                   />
                 );
               })}
@@ -481,11 +307,14 @@ function PricingPage() {
                 color={textColor}
                 lineHeight="tall"
               >
-                Start your 7-day free trial today and experience how KeyReach CRM can revolutionize your real estate business. Cancel anytime before 7 days. No commitment required.
+                Start your 7-day free trial today and experience how KeyReach CRM
+                can revolutionize your real estate business. Cancel anytime
+                before 7 days. No commitment required.
               </Text>
               <Stack spacing={4}>
                 <Text fontSize="xl" color={textColor} fontWeight="bold">
-                  Try all premium features risk-free for 7 days.
+                  Try all premium features risk
+                  -free for 7 days.
                 </Text>
                 <Text fontSize="lg" color={textColor}>
                   Join thousands of successful real estate professionals who trust
@@ -497,7 +326,7 @@ function PricingPage() {
         </Stack>
       </Container>
     </Box>
-  )
+  );
 }
 
-export default PricingPage
+export default PricingPage;

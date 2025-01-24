@@ -1,71 +1,125 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { headers } from 'next/headers';
 import { logError } from '@/lib/utils/log';
-import { updateSubscriptionInProfile } from '@/lib/utils/subscription';
+import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2023-10-16',
+});
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function POST(req: Request) {
-  const payload = await req.text();
-  const signature = req.headers.get('stripe-signature');
+  const signature = headers().get('stripe-signature');
+  const body = await req.text();
+
+  if (!signature) {
+    return new NextResponse('No signature', { status: 400 });
+  }
 
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(payload, signature!, webhookSecret);
-  } catch (err: any) {
-    logError('Webhook signature verification failed.', err);
-    return NextResponse.json({ error: 'Webhook signature verification failed.' }, { status: 400 });
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    logError('Webhook signature verification failed', err);
+    return new NextResponse('Webhook signature verification failed', { status: 400 });
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as any;
-    const customerId = session.customer;
-    const subscriptionId = session.subscription;
-    const userId = session.metadata?.userId;
-    const tier = session.metadata?.tier;
-    const billingCycle = session.metadata?.billingCycle;
-    let additionalUsers = session.metadata?.additionalUsers;
-    const subscriptionPeriodEnd = session.subscription?.current_period_end;
+  try {
+    switch (event.type) {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+        const subscriptionId = subscription.id;
+        const userId = subscription.metadata.userId;
+        const planId = subscription.items.data[0].price.product;
+        const price = await stripe.prices.retrieve(subscription.items.data[0].price.id);
+        const product = await stripe.products.retrieve(planId as string);
+        const planType = product.name;
+        const billingCycle = price.recurring?.interval;
+        const additionalUsers = subscription.metadata.additionalUsers;
+        const subscriptionStatus = subscription.status;
 
-    if (!userId) {
-      logError('Error: userId is missing in metadata.');
-      return NextResponse.json({ error: 'userId is missing in metadata.' }, { status: 400 });
+        console.log('Subscription Created/Updated Event Data:', {
+          userId,
+          customerId,
+          subscriptionId,
+          planType,
+          billingCycle,
+          additionalUsers,
+          subscriptionStatus,
+        });
+
+        if (!userId) {
+          logError('No userId found in subscription metadata');
+          return new NextResponse('No userId found in subscription metadata', { status: 400 });
+        }
+
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            stripe_customer_id: customerId,
+            subscription_id: subscriptionId,
+            subscription_status: subscriptionStatus,
+            plan_type: planType,
+            billing_cycle: billingCycle,
+            additional_users: additionalUsers,
+          })
+          .eq('user_id', userId);
+
+        if (error) {
+          logError('Error updating profile:', error);
+          return new NextResponse('Error updating profile', { status: 500 });
+        }
+        break;
+      case 'checkout.session.completed':
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userIdFromSession = session.client_reference_id;
+        const customerIdFromSession = session.customer as string;
+        const subscriptionIdFromSession = session.subscription as string;
+
+        console.log('Checkout Session Completed Event Data:', {
+          userIdFromSession,
+          customerIdFromSession,
+          subscriptionIdFromSession,
+        });
+
+        if (!userIdFromSession) {
+          logError('No userId found in checkout session metadata');
+          return new NextResponse('No userId found in checkout session metadata', { status: 400 });
+        }
+
+        const { error: sessionError } = await supabase
+          .from('profiles')
+          .update({
+            stripe_customer_id: customerIdFromSession,
+            subscription_id: subscriptionIdFromSession,
+            subscription_status: 'active',
+          })
+          .eq('user_id', userIdFromSession);
+
+        if (sessionError) {
+          logError('Error updating profile from session:', sessionError);
+          return new NextResponse('Error updating profile from session', { status: 500 });
+        }
+        break;
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
     }
 
-    if (typeof additionalUsers !== 'string' || isNaN(parseInt(additionalUsers, 10))) {
-      logError('Error: additionalUsers is not a valid number, setting to 0.');
-      additionalUsers = 0;
-    } else {
-      additionalUsers = parseInt(additionalUsers, 10);
-    }
-
-    try {
-      const subscriptionData = {
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        subscription_status: 'active',
-        subscription_tier: tier,
-        billing_cycle: billingCycle,
-        additional_users: additionalUsers,
-        subscription_period_end: subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd * 1000).toISOString() : null,
-      };
-
-      const updatedProfile = await updateSubscriptionInProfile(userId, subscriptionData);
-
-      if (updatedProfile.error) {
-        logError('Error updating profile:', updatedProfile.error, updatedProfile.details);
-        return NextResponse.json({ error: `Error updating profile: ${updatedProfile.error}` }, { status: 500 });
-      }
-
-      console.log(`User ${userId} subscription updated successfully.`);
-      return NextResponse.json({ received: true }, { status: 200 });
-    } catch (error: any) {
-      logError('Error processing webhook:', error);
-      return NextResponse.json({ error: `Error processing webhook: ${error.message}` }, { status: 500 });
-    }
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    logError('Webhook processing error:', error);
+    return new NextResponse('Webhook processing error', { status: 500 });
   }
-
-  return NextResponse.json({ received: true }, { status: 200 });
 }

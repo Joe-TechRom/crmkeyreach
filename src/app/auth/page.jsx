@@ -20,7 +20,7 @@ import {
   IconButton,
   useToast,
   Flex,
-  FormErrorMessage, // Import FormErrorMessage
+  FormErrorMessage,
 } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { FiEye, FiEyeOff, FiMail, FiLock } from 'react-icons/fi';
@@ -34,33 +34,19 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState(''); // State for email error
-  const [passwordError, setPasswordError] = useState(''); // State for password error
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.push('/dashboard'); // Or redirect to tier-specific dashboard
-      }
-    };
-    checkAuth();
-  }, [router]);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const validateEmail = (email) => {
-    // Basic email validation regex
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return regex.test(email);
   };
 
   const handleSignIn = async (e) => {
     e.preventDefault();
-
-    // Reset errors
     setEmailError('');
     setPasswordError('');
 
-    // Validate inputs
     if (!email) {
       setEmailError('Email is required');
       return;
@@ -77,6 +63,7 @@ export default function AuthPage() {
     }
 
     setIsLoading(true);
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -84,7 +71,6 @@ export default function AuthPage() {
       });
 
       if (error) {
-        // Handle specific Supabase errors
         if (error.message.includes('Invalid login credentials')) {
           toast({
             title: 'Error',
@@ -94,22 +80,33 @@ export default function AuthPage() {
             isClosable: true,
           });
         } else {
-          throw error; // Re-throw for generic error handling
+          throw error;
         }
       } else {
-        // Redirect to the appropriate dashboard based on user's tier
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('subscription_tier')
-            .eq('id', session.user.id)
+            .eq('user_id', session.user.id)
             .single();
+
+          if (profileError) {
+            console.error('Error fetching profile:', profileError);
+            toast({
+              title: 'Error',
+              description: 'Failed to fetch user profile.',
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
+            return;
+          }
 
           const tier = profile?.subscription_tier || 'single_user';
           router.push(`/dashboard/${tier}`);
         } else {
-          router.push('/dashboard'); // Fallback if session is somehow missing
+          router.push('/dashboard');
         }
       }
     } catch (error) {
@@ -166,7 +163,6 @@ export default function AuthPage() {
             </Text>
           </Stack>
         </motion.div>
-
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -192,7 +188,6 @@ export default function AuthPage() {
                   </InputGroup>
                   {emailError && <FormErrorMessage>{emailError}</FormErrorMessage>}
                 </FormControl>
-
                 <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel>Password</FormLabel>
                   <InputGroup>
@@ -213,7 +208,6 @@ export default function AuthPage() {
                   </InputGroup>
                   {passwordError && <FormErrorMessage>{passwordError}</FormErrorMessage>}
                 </FormControl>
-
                 <Button
                   type="submit"
                   colorScheme="blue"
@@ -224,13 +218,11 @@ export default function AuthPage() {
                 >
                   Sign In
                 </Button>
-
                 <Flex align="center" w="full">
                   <Box flex="1" h="1px" bg="gray.300" />
                   <Text px={4} color="gray.500">or</Text>
                   <Box flex="1" h="1px" bg="gray.300" />
                 </Flex>
-
                 <Button
                   w="full"
                   onClick={() => handleOAuth('google')}
@@ -239,7 +231,6 @@ export default function AuthPage() {
                 >
                   Continue with Google
                 </Button>
-
                 <Button
                   variant="link"
                   onClick={() => router.push('/auth/signup')}
