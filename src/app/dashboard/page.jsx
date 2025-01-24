@@ -38,7 +38,7 @@ const DashboardPage = () => {
     return null;
   }
 
-  const userTier = user?.subscription_tier || 'single_user'; // Default to single-user if tier is not defined
+  const userTier = user?.subscription_tier || 'single-user'; // Default to single-user if tier is not defined
 
   return (
     <Box
@@ -47,7 +47,7 @@ const DashboardPage = () => {
       py={10}
     >
       <Container maxW="8xl">
-        {userTier === 'single_user' && <SingleUserDashboard />}
+        {userTier === 'single-user' && <SingleUserDashboard />}
         {userTier === 'team' && <TeamDashboard />}
         {userTier === 'corporate' && <CorporateDashboard />}
       </Container>

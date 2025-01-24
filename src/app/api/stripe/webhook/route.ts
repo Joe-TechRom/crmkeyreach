@@ -1,124 +1,86 @@
-// src/app/api/stripe/webhook/route.js
-import Stripe from 'stripe';
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import supabase from '@/lib/supabaseClient';
+import Stripe from 'stripe';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-export async function POST(req) {
-  const body = await req.text();
-  const signature = headers().get('stripe-signature');
+export async function POST(req: Request) {
+  const payload = await req.text();
+  const signature = req.headers.get('stripe-signature');
 
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch (error) {
-    console.error('Webhook signature verification failed:', error);
-    return new NextResponse('Webhook signature verification failed', { status: 400 });
+    event = stripe.webhooks.constructEvent(payload, signature!, webhookSecret);
+  } catch (err: any) {
+    console.error('Webhook signature verification failed.', err);
+    return NextResponse.json({ error: 'Webhook signature verification failed.' }, { status: 400 });
   }
 
-  switch (event.type) {
-    case 'customer.created':
-      // Handle customer created event
-      console.log('Customer Created Event:', event.data.object);
-      const customer = event.data.object;
-      const userId = customer.metadata?.userId;
-      if (userId) {
-        try {
-          const { error } = await supabase
-            .from('profiles')
-            .update({
-              stripe_customer_id: customer.id,
-            })
-            .eq('user_id', userId);
-          if (error) {
-            console.error('Error updating customer ID:', error);
-          }
-        } catch (error) {
-          console.error('Error updating customer ID:', error);
-        }
-      } else {
-        console.error('Invalid or missing User ID in session metadata:', customer.metadata);
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as any;
+    const customerId = session.customer;
+    const subscriptionId = session.subscription;
+    const userId = session.metadata?.userId;
+    const tier = session.metadata?.tier;
+    const billingCycle = session.metadata?.billingCycle;
+    let additionalUsers = session.metadata?.additionalUsers;
+
+    console.log('Webhook received, metadata:', session.metadata);
+
+    if (!userId) {
+      console.error('Error: userId is missing in metadata.');
+      return NextResponse.json({ error: 'userId is missing in metadata.' }, { status: 400 });
+    }
+
+    if (typeof additionalUsers !== 'string' || isNaN(parseInt(additionalUsers, 10))) {
+      console.error('Error: additionalUsers is not a valid number, setting to 0.');
+      additionalUsers = 0;
+    } else {
+      additionalUsers = parseInt(additionalUsers, 10);
+    }
+
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      {
+        cookies: {
+          get(name) {
+            return cookieStore.get(name)?.value;
+          },
+        },
       }
-      break;
-    case 'customer.subscription.created':
-      // Handle subscription created event
-      console.log('Subscription Created Event:', event.data.object);
-      const subscription = event.data.object;
-      const userIdSub = subscription.metadata?.userId;
-      if (userIdSub) {
-        try {
-          const { error } = await supabase
-            .from('profiles')
-            .update({
-              stripe_subscription_id: subscription.id,
-            })
-            .eq('user_id', userIdSub);
-          if (error) {
-            console.error('Error updating subscription ID:', error);
-          }
-        } catch (error) {
-          console.error('Error updating subscription ID:', error);
-        }
-      } else {
-        console.error('Invalid or missing User ID in session metadata:', subscription.metadata);
+    );
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          subscription_status: 'active',
+          subscription_tier: tier,
+          billing_cycle: billingCycle,
+          additional_users: additionalUsers,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error updating profile:', error);
+        return NextResponse.json({ error: `Error updating profile: ${error.message}` }, { status: 500 });
       }
-      break;
-    case 'customer.subscription.updated':
-      // Handle subscription updated event
-      console.log('Subscription Updated Event:', event.data.object);
-      break;
-    case 'checkout.session.completed':
-      // Handle checkout session completed event
-      console.log('Checkout Session Completed Event Metadata:', event.data.object.metadata);
-      break;
-    case 'payment_intent.succeeded':
-      // Handle payment intent succeeded event
-      console.log('Payment Intent Succeeded Event:', event.data.object);
-      break;
-    case 'payment_intent.created':
-      // Handle payment intent created event
-      console.log('Payment Intent Created Event:', event.data.object);
-      break;
-    case 'invoice.created':
-      // Handle invoice created event
-      console.log('Invoice Created Event:', event.data.object);
-      break;
-    case 'invoice.finalized':
-      // Handle invoice finalized event
-      console.log('Invoice Finalized Event:', event.data.object);
-      break;
-    case 'charge.succeeded':
-      // Handle charge succeeded event
-      console.log('Charge Succeeded Event:', event.data.object);
-      break;
-    case 'invoice.updated':
-      // Handle invoice updated event
-      console.log('Invoice Updated Event:', event.data.object);
-      break;
-    case 'invoice.paid':
-      // Handle invoice paid event
-      console.log('Invoice Paid Event:', event.data.object);
-      break;
-    case 'invoice.payment_succeeded':
-      // Handle invoice payment succeeded event
-      console.log('Invoice Payment Succeeded Event:', event.data.object);
-      break;
-    case 'payment_method.attached':
-      // Ignore payment method attached event
-      console.log('Payment Method Attached Event Ignored:', event.data.object);
-      break;
-    case 'customer.updated':
-      // Ignore customer updated event
-      console.log('Customer Updated Event Ignored:', event.data.object);
-      break;
-    default:
-      console.log(`Unhandled event type: ${event.type}`);
+
+      console.log(`User ${userId} subscription updated successfully.`);
+      return NextResponse.json({ received: true }, { status: 200 });
+    } catch (error: any) {
+      console.error('Error processing webhook:', error);
+      return NextResponse.json({ error: `Error processing webhook: ${error.message}` }, { status: 500 });
+    }
   }
 
-  return NextResponse.json({ received: true });
+  return NextResponse.json({ received: true }, { status: 200 });
 }

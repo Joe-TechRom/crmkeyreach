@@ -1,4 +1,3 @@
-// src/app/checkout/page.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -144,7 +143,6 @@ export default function CheckoutPage() {
   const toast = useToast();
   const [isYearly, setIsYearly] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [additionalUsers, setAdditionalUsers] = useState({});
   const [userId, setUserId] = useState(null);
   const [session, setSession] = useState(null);
@@ -152,66 +150,67 @@ export default function CheckoutPage() {
   const planType = searchParams.get('tier') || 'single_user';
 
   useEffect(() => {
-    const checkAuth = async () => {
-      setIsLoadingAuth(true);
-      const { data: { session: supabaseSession }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error fetching session:', error);
-        router.push('/auth');
-        return;
+    const fetchSession = async () => {
+      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+      if (supabaseSession) {
+        setSession(supabaseSession);
+        setUserId(supabaseSession.user.id);
       }
-      if (!supabaseSession) {
-        router.push('/auth');
-        return;
-      }
-      setSession(supabaseSession);
-      setUserId(supabaseSession.user.id);
-      setIsLoadingAuth(false);
     };
-    checkAuth();
-  }, [router]);
+    fetchSession();
+  }, []);
 
   const handlePlanSelection = async (plan) => {
-    try {
-      setIsLoading(true);
-
-      const checkoutData = {
-        planId: plan.id,
-        isYearly,
-        additionalUsers: Number(additionalUsers[plan.name] || 0),
-        userId,
-        planType: plan.id, // Adding planType information
-        billingCycle: isYearly ? 'yearly' : 'monthly', // Adding billingCycle information
-      };
-
-      console.log('Starting checkout with:', checkoutData);
-
-      const checkoutSession = await createCheckoutSession(
-        checkoutData.planId,
-        checkoutData.isYearly,
-        checkoutData.additionalUsers,
-        checkoutData.planType, // Passing planType to checkout session
-        checkoutData.billingCycle // Passing billingCycle to checkout session
-      );
-
-      if (checkoutSession?.url) {
-        // Store tier information in localStorage before redirect
-        localStorage.setItem('selectedTier', plan.id);
-        window.location.href = checkoutSession.url;
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
+  try {
+    setIsLoading(true);
+    
+    // Get the current session
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    
+    if (!userId) {
       toast({
-        title: 'Checkout Error',
-        description: 'Please try selecting your plan again',
-        status: 'error',
+        title: 'Authentication Required',
+        description: 'Please sign in to continue',
+        status: 'info',
         duration: 5000,
         isClosable: true,
       });
-    } finally {
-      setIsLoading(false);
+      router.push('/auth');
+      return;
     }
-  };
+
+    const checkoutData = {
+      planId: plan.id,
+      isYearly,
+      additionalUsers: Number(additionalUsers[plan.name] || 0),
+      userId
+    };
+
+    const checkoutSession = await createCheckoutSession(
+      checkoutData.planId,
+      checkoutData.isYearly,
+      checkoutData.additionalUsers,
+      userId  // Pass userId here
+    );
+
+    if (checkoutSession?.url) {
+      window.location.href = checkoutSession.url;
+    }
+  } catch (error) {
+    console.error('Checkout error:', error);
+    toast({
+      title: 'Checkout Error',
+      description: 'Please try selecting your plan again',
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const handleAdditionalUsersChange = (planName, value) => {
     setAdditionalUsers((prev) => ({ ...prev, [planName]: value }));
@@ -286,29 +285,23 @@ export default function CheckoutPage() {
             <Text>Yearly (Save 10%)</Text>
           </Flex>
         </Stack>
-        {isLoadingAuth ? (
-          <Flex justify="center" align="center">
-            <Spinner size="xl" />
-          </Flex>
-        ) : (
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={8} w="full">
-            {plans.map((plan) => (
-              <PricingCard
-                key={plan.name}
-                plan={plan}
-                features={plan.features}
-                monthlyPrice={plan.monthlyPrice}
-                yearlyPrice={plan.yearlyPrice}
-                isPopular={plan.isPopular}
-                isYearly={isYearly}
-                onSelect={handlePlanSelection}
-                additionalUsers={additionalUsers[plan.name] || 0}
-                setAdditionalUsers={handleAdditionalUsersChange}
-                isLoading={isLoading}
-              />
-            ))}
-          </SimpleGrid>
-        )}
+        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={8} w="full">
+          {plans.map((plan) => (
+            <PricingCard
+              key={plan.name}
+              plan={plan}
+              features={plan.features}
+              monthlyPrice={plan.monthlyPrice}
+              yearlyPrice={plan.yearlyPrice}
+              isPopular={plan.isPopular}
+              isYearly={isYearly}
+              onSelect={handlePlanSelection}
+              additionalUsers={additionalUsers[plan.name] || 0}
+              setAdditionalUsers={handleAdditionalUsersChange}
+              isLoading={isLoading}
+            />
+          ))}
+        </SimpleGrid>
       </VStack>
     </Container>
   );

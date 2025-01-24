@@ -1,9 +1,9 @@
-// src/app/api/update-subscription/route.js
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use service role key for admin access
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: false,
@@ -37,7 +37,6 @@ export async function POST(req) {
       additionalUsers
     );
 
-    // 1. Validate Input (important for security)
     if (!userId || !planId || !subscriptionId || !customerId) {
       console.error('Missing required parameters');
       return NextResponse.json(
@@ -46,7 +45,6 @@ export async function POST(req) {
       );
     }
 
-    // 2. Calculate subscription_period_end (example: add 1 month for monthly, 1 year for yearly)
     let subscriptionPeriodEnd;
     const now = new Date();
     if (billingCycle === 'monthly') {
@@ -55,23 +53,23 @@ export async function POST(req) {
       subscriptionPeriodEnd = new Date(now.setFullYear(now.getFullYear() + 1));
     } else {
       console.warn('Invalid billing cycle:', billingCycle);
-      subscriptionPeriodEnd = null; // Or handle differently
+      subscriptionPeriodEnd = null;
     }
 
-    // 3. Update the profiles table in Supabase
     const { data, error } = await supabase
       .from('profiles')
       .update({
-        subscription_status: 'active', // Or 'trialing', depending on your logic
-        plan_type: planId,
+        subscription_status: 'active',
         stripe_customer_id: customerId,
-        subscription_tier: planId, // Assuming planId maps directly to tier
-        subscription_id: subscriptionId, // Store the Stripe subscription ID
+        subscription_tier: planId,
+        stripe_subscription_id: subscriptionId,
+        billing_cycle: billingCycle,
+        additional_users: additionalUsers,
         subscription_period_end: subscriptionPeriodEnd
           ? subscriptionPeriodEnd.toISOString()
           : null,
       })
-      .eq('user_id', userId) // Use user_id to identify the profile
+      .eq('user_id', userId)
       .select();
 
     if (error) {

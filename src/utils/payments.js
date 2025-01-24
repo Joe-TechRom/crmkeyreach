@@ -17,7 +17,12 @@ const PRICE_IDS = {
   },
 };
 
-export async function createCheckoutSession(planId, isYearly = false, additionalUsers = 0) {
+export async function createCheckoutSession(
+  planId,
+  isYearly = false,
+  additionalUsers = 0,
+  userId // Add userId as a parameter
+) {
   try {
     // Get the correct price ID based on plan and billing interval
     const plan = PRICE_IDS[planId];
@@ -36,6 +41,7 @@ export async function createCheckoutSession(planId, isYearly = false, additional
       priceId,
       additionalUsers,
       additionalUserPriceId,
+      userId, // Log the userId
     });
 
     const response = await fetch('/api/create-checkout-session', {
@@ -47,6 +53,7 @@ export async function createCheckoutSession(planId, isYearly = false, additional
         priceId,
         additionalUserPriceId,
         additionalUsers,
+        userId, // Include userId in the request body
       }),
     });
 
