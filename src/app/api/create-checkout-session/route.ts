@@ -1,36 +1,38 @@
-// /src/app/api/create-checkout-session/route.ts
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { stripe } from '@/utils/stripe/config'
-import { NextResponse } from 'next/server'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import Stripe from 'stripe';
 
-export async function POST(req: Request) {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export async function POST(request) {
+  const cookieStore = await cookies();
+  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  
+  // Get user session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session?.user) {
+    return Response.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const { priceId, tier } = await req.json()
-    const supabase = createRouteHandlerClient({ cookies })
-
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      customer_email: user.email,
+    const { priceId } = await request.json();
+    
+    // Create Stripe checkout session
+    const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/account?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout`,
       metadata: {
-        userId: user.id,
-        tier: tier
-      }
-    })
+        userId: session.user.id
+      },
+      customer_email: session.user.email
+    });
 
-    return NextResponse.json({ sessionId: session.id })
+    return Response.json({ sessionId: checkoutSession.id });
   } catch (error) {
-    console.error('Error:', error)
-    return new NextResponse('Error creating checkout session', { status: 500 })
+    return Response.json({ message: error.message }, { status: 500 });
   }
 }

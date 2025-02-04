@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import supabase from '@/lib/supabaseClient';
+import { createBrowserClient } from '@/lib/supabaseClient';
 import {
   Container,
   Stack,
@@ -50,6 +50,7 @@ const SignInContent = () => {
         setRedirecting(true);
 
         // Fetch user profile and redirect
+        const supabase = createBrowserClient();
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('subscription_status, subscription_tier')
@@ -84,6 +85,7 @@ const SignInContent = () => {
     try {
       setIsLoading(true);
       console.log("Initiating Google signin with tier:", selectedTier);
+      const supabase = createBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -121,6 +123,7 @@ const SignInContent = () => {
     try {
       setIsLoading(true);
       console.log("Signing in with email:", email, "and tier:", selectedTier);
+      const supabase = createBrowserClient();
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -135,6 +138,7 @@ const SignInContent = () => {
         });
       } else {
         console.log("Email/Password signin successful.");
+        const supabase = createBrowserClient();
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) {
           console.error('Error fetching user data:', userError);

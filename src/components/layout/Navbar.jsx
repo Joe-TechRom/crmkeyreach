@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -26,20 +26,38 @@ import { HamburgerIcon, CloseIcon } from '@chakra-ui/icons';
 import { keyframes } from '@emotion/react';
 import { redirectDashboard } from '@/lib/utils/dashboard';
 import useUser from '@/lib/hooks/useUser';
-import supabase from '@/lib/supabaseClient'; // Import Supabase client
 
 const shimmer = keyframes`
   0% { background-position: -200% center; }
   100% { background-position: 200% center; }
 `;
 
+const mobileMenuVariants = {
+  hidden: { 
+    opacity: 0,
+    height: 0,
+    transition: {
+      duration: 0.2,
+      ease: 'easeInOut'
+    }
+  },
+  visible: {
+    opacity: 1,
+    height: 'auto',
+    transition: {
+      duration: 0.3,
+      ease: 'easeInOut'
+    }
+  }
+};
+
 const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { isOpen, onToggle } = useDisclosure();
   const [scrolled, setScrolled] = useState(false);
-  const { user, isLoading, signOut } = useUser(); // Corrected destructuring
-  const isAuthenticated = !!user; // Derive isAuthenticated from user object
+  const { user, isLoading, signOut } = useUser();
+  const isAuthenticated = !!user;
 
   const navItems = [
     { name: 'Home', path: '/' },
@@ -57,8 +75,22 @@ const Navbar = () => {
     },
   };
 
+  const bgColor = useColorModeValue(
+    scrolled ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
+    scrolled ? 'rgba(26, 32, 44, 0.9)' : 'transparent'
+  );
+
+  const buttonStyles = {
+    transform: 'translateY(-2px)',
+    boxShadow: 'lg',
+    background: useColorModeValue(
+      'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)',
+      'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)'
+    )
+  };
+
   const handleLogout = async () => {
-    await signOut(); // Use signOut from useUser
+    await signOut();
     router.push('/');
   };
 
@@ -70,11 +102,11 @@ const Navbar = () => {
     }
   };
 
-  const handleDashboardRedirect = async () => {
+  const handleDashboardRedirect = useCallback(async () => {
     if (isAuthenticated) {
       await redirectDashboard(user, router);
     }
-  };
+  }, [isAuthenticated, router, user]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -104,6 +136,9 @@ const Navbar = () => {
     },
   };
 
+  const textColor = useColorModeValue('gray.600', 'gray.200');
+  const signInButtonHoverBg = useColorModeValue('orange.50', 'whiteAlpha.100');
+
   return (
     <motion.nav initial="hidden" animate="visible" variants={navVariants}>
       <Box
@@ -111,35 +146,49 @@ const Navbar = () => {
         w="100%"
         zIndex="1000"
         transition="all 0.3s ease-in-out"
-        bg={scrolled ? useColorModeValue('rgba(255, 255, 255, 0.9)', 'rgba(26, 32, 44, 0.9)') : 'transparent'}
+        bg={bgColor}
         backdropFilter={scrolled ? 'blur(10px)' : 'none'}
         boxShadow={scrolled ? 'lg' : 'none'}
+        css={{
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backdropFilter: scrolled ? 'blur(10px)' : 'none',
+            zIndex: -1,
+          }
+        }}
       >
-        <Container maxW="8xl">
+        <Container maxW="8xl" px={{ base: 4, md: 6, lg: 8 }}>
           <Flex minH={'72px'} align={'center'} justify={'space-between'}>
             <motion.div whileHover={{ scale: 1.02 }}>
-              <Link href="/">
-                <Box position="relative" width="140px" height="40px">
+              <Box position="relative" width="140px" height="40px">
+                <Link href="/">
                   <Image
                     src="/images/logo.png"
                     alt="Logo"
                     width={200}
                     height={100}
                     style={{ objectFit: 'contain' }}
+                    priority
                   />
-                </Box>
-              </Link>
+                </Link>
+              </Box>
             </motion.div>
+
             <Flex display={{ base: 'none', md: 'flex' }} align="center">
               <Stack direction={'row'} spacing={8}>
                 {navItems.map((item) => (
                   <motion.div key={item.path} variants={linkVariants} whileHover="hover">
-                    <Link href={item.path}>
-                      <Box position="relative" px={2} py={1}>
+                    <Box position="relative" px={2} py={1}>
+                      <Link href={item.path}>
                         <Text
                           fontSize="md"
                           fontWeight="500"
-                          color={pathname === item.path ? colors.orange.main : useColorModeValue('gray.600', 'gray.200')}
+                          color={pathname === item.path ? colors.orange.main : textColor}
                           _hover={{ color: colors.orange.main }}
                           transition="all 0.2s"
                         >
@@ -160,11 +209,12 @@ const Navbar = () => {
                             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                           />
                         )}
-                      </Box>
-                    </Link>
+                      </Link>
+                    </Box>
                   </motion.div>
                 ))}
               </Stack>
+
               <Stack direction="row" spacing={4} ml={8}>
                 {isLoading ? (
                   <Text>Loading...</Text>
@@ -182,6 +232,7 @@ const Navbar = () => {
                           size={'sm'}
                           src={user?.firstName || user?.email ? null : user?.user_metadata?.avatar_url}
                           name={user?.firstName || user?.email || user?.user_metadata?.full_name}
+                          alt="User Avatar"
                         />
                         <Text display={{ base: 'none', md: 'block' }} color={useColorModeValue('gray.700', 'gray.200')}>
                           {user?.firstName || user?.email || user?.user_metadata?.full_name || 'User'}
@@ -197,25 +248,27 @@ const Navbar = () => {
                   </Menu>
                 ) : (
                   <>
-                    <Button
-                      as={Link}
-                      href="/auth/signin"
-                      px={6}
-                      h={10}
-                      fontSize="md"
-                      rounded="xl"
-                      variant="outline"
-                      borderColor={colors.orange.main}
-                      color={colors.orange.main}
-                      _hover={{
-                        transform: 'translateY(-2px)',
-                        shadow: 'lg',
-                        bg: useColorModeValue('orange.50', 'whiteAlpha.100'),
-                      }}
-                      transition="all 0.2s"
-                    >
-                      Sign In
-                    </Button>
+                    <Box>
+                      <Link href="/auth/signin">
+                        <Button
+                          px={6}
+                          h={10}
+                          fontSize="md"
+                          rounded="xl"
+                          variant="outline"
+                          borderColor={colors.orange.main}
+                          color={colors.orange.main}
+                          _hover={{
+                            transform: 'translateY(-2px)',
+                            shadow: 'lg',
+                            bg: signInButtonHoverBg,
+                          }}
+                          transition="all 0.2s"
+                        >
+                          Sign In
+                        </Button>
+                      </Link>
+                    </Box>
                     <Button
                       onClick={handleGetStarted}
                       px={6}
@@ -224,10 +277,7 @@ const Navbar = () => {
                       rounded="xl"
                       bgGradient={colors.orange.gradient}
                       color="white"
-                      _hover={{
-                        transform: 'translateY(-2px)',
-                        shadow: 'lg',
-                      }}
+                      _hover={buttonStyles}
                       transition="all 0.2s"
                     >
                       <Text position="relative" zIndex={1}>
@@ -238,6 +288,7 @@ const Navbar = () => {
                 )}
               </Stack>
             </Flex>
+
             <IconButton
               display={{ base: 'flex', md: 'none' }}
               onClick={onToggle}
@@ -247,13 +298,14 @@ const Navbar = () => {
               color={colors.orange.main}
             />
           </Flex>
+
           <AnimatePresence>
             {isOpen && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
+                variants={mobileMenuVariants}
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
               >
                 <Stack
                   bg={useColorModeValue('white', 'gray.800')}
@@ -264,15 +316,17 @@ const Navbar = () => {
                   shadow="xl"
                 >
                   {navItems.map((item) => (
-                    <Link key={item.path} href={item.path}>
-                      <Text
-                        fontSize="md"
-                        color={pathname === item.path ? colors.orange.main : useColorModeValue('gray.600', 'gray.200')}
-                        _hover={{ color: colors.orange.main }}
-                      >
-                        {item.name}
-                      </Text>
-                    </Link>
+                    <Box key={item.path}>
+                      <Link href={item.path}>
+                        <Text
+                          fontSize="md"
+                          color={pathname === item.path ? colors.orange.main : textColor}
+                          _hover={{ color: colors.orange.main }}
+                        >
+                          {item.name}
+                        </Text>
+                      </Link>
+                    </Box>
                   ))}
                   {isAuthenticated ? (
                     <Stack spacing={2}>
@@ -285,14 +339,19 @@ const Navbar = () => {
                     </Stack>
                   ) : (
                     <Stack spacing={2}>
-                      <Button as={Link} href="/auth/signin" w="full" variant="outline" colorScheme="orange">
-                        Sign In
-                      </Button>
+                      <Box>
+                        <Link href="/auth/signin">
+                          <Button w="full" variant="outline" colorScheme="orange">
+                            Sign In
+                          </Button>
+                        </Link>
+                      </Box>
                       <Button
                         onClick={handleGetStarted}
                         w="full"
                         bgGradient={colors.orange.gradient}
                         color="white"
+                        _hover={buttonStyles}
                       >
                         Get Started
                       </Button>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
 import {
   Box,
   Container,
@@ -22,13 +23,12 @@ import {
   NumberInputStepper,
   NumberIncrementStepper,
   NumberDecrementStepper,
-  Spinner,
 } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { MdStar, MdStarBorder } from 'react-icons/md';
-import supabase from '@/lib/supabaseClient';
+import { createBrowserClient } from '@/lib/supabaseClient';
 import { createCheckoutSession } from '@/utils/payments';
-import { subscriptionPlans } from '@/config/plans'; // Import plan data
+import { subscriptionPlans } from '@/config/plans';
 
 const PricingCard = ({
   plan,
@@ -41,10 +41,13 @@ const PricingCard = ({
   additionalUsers,
   setAdditionalUsers,
   isLoading,
+  isSelected,
 }) => {
   const displayPrice = isYearly ? yearlyPrice : monthlyPrice;
   const billingPeriod = isYearly ? '/year' : '/month';
-  const hasAdditionalUsers = plan.additionalUserPrice !== null;
+  const hasAdditionalUsers = plan.additionalUserPrice !== undefined && 
+    plan.additionalUserPrice !== null && 
+    plan.name !== 'Single User';
 
   return (
     <motion.div
@@ -58,8 +61,8 @@ const PricingCard = ({
         shadow="xl"
         p={8}
         position="relative"
-        borderWidth={isPopular ? '2px' : '1px'}
-        borderColor={isPopular ? 'blue.400' : 'gray.200'}
+        borderWidth={isSelected ? '3px' : isPopular ? '2px' : '1px'}
+        borderColor={isSelected ? 'green.400' : isPopular ? 'blue.400' : 'gray.200'}
         _hover={{
           transform: 'translateY(-8px)',
           shadow: '2xl',
@@ -101,7 +104,7 @@ const PricingCard = ({
                   as={feature.included ? MdStar : MdStarBorder}
                   color={feature.included ? 'blue.400' : 'gray.400'}
                 />
-                <Text>{feature.text}</Text> {/* Access the text property */}
+                <Text>{feature.text}</Text>
               </Stack>
             ))}
           </VStack>
@@ -111,6 +114,7 @@ const PricingCard = ({
               min={0}
               max={150}
               onChange={(value) => setAdditionalUsers(plan.name, value)}
+              isDisabled={isLoading}
             >
               <NumberInputField />
               <NumberInputStepper>
@@ -122,7 +126,7 @@ const PricingCard = ({
           <Button
             size="lg"
             w="full"
-            colorScheme={isPopular ? 'blue' : 'gray'}
+            colorScheme={isSelected ? 'green' : isPopular ? 'blue' : 'gray'}
             onClick={() => onSelect(plan)}
             _hover={{
               transform: 'translateY(-2px)',
@@ -130,15 +134,15 @@ const PricingCard = ({
             }}
             isLoading={isLoading}
             loadingText="Processing..."
+            disabled={isLoading}
           >
-            Select {plan.name}
+            {isSelected ? 'Selected' : `Select ${plan.name}`}
           </Button>
         </VStack>
       </Box>
     </motion.div>
   );
 };
-
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -147,20 +151,23 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [additionalUsers, setAdditionalUsers] = useState({});
   const [session, setSession] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState(null);
   const searchParams = useSearchParams();
-  const planType = searchParams.get('tier') || 'single_user';
 
   useEffect(() => {
     const fetchSession = async () => {
+      const supabase = createBrowserClient();
       const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-      if (supabaseSession) {
-        setSession(supabaseSession);
-      }
+      setSession(supabaseSession);
     };
     fetchSession();
   }, []);
 
   const handlePlanSelection = async (plan) => {
+    if (isLoading) return;
+    
+    setSelectedPlan(plan);
+    
     try {
       setIsLoading(true);
 
@@ -176,42 +183,35 @@ export default function CheckoutPage() {
         return;
       }
 
-      const checkoutData = {
-        planId: plan.id,
-        isYearly,
-        additionalUsers: Number(additionalUsers[plan.name] || 0),
-        userId: session.user.id,
-      };
+      const priceId = isYearly ? plan.yearlyPriceId : plan.monthlyPriceId;
+      const additionalUserCount = Number(additionalUsers[plan.name] || 0);
 
-      const checkoutSession = await createCheckoutSession(
-        checkoutData.planId,
-        checkoutData.isYearly,
-        checkoutData.additionalUsers,
-        checkoutData.userId
-      );
-
-      if (checkoutSession?.url) {
-        window.location.href = checkoutSession.url;
+      const { sessionId } = await createCheckoutSession(priceId);
+      
+      if (sessionId) {
+        const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+        await stripe.redirectToCheckout({ sessionId });
       }
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
         title: 'Checkout Error',
-        description: 'Please try selecting your plan again',
+        description: error.message || 'Please try selecting your plan again',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+      setSelectedPlan(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAdditionalUsersChange = (planName, value) => {
-    setAdditionalUsers((prev) => ({ ...prev, [planName]: value }));
+    setAdditionalUsers(prev => ({ ...prev, [planName]: value }));
   };
 
-  const plans = Object.values(subscriptionPlans); // Use imported plan data
+  const plans = Object.values(subscriptionPlans);
 
   return (
     <Container maxW="7xl" py={20}>
@@ -251,7 +251,8 @@ export default function CheckoutPage() {
               onSelect={handlePlanSelection}
               additionalUsers={additionalUsers[plan.name] || 0}
               setAdditionalUsers={handleAdditionalUsersChange}
-              isLoading={isLoading}
+              isLoading={isLoading && selectedPlan?.name === plan.name}
+              isSelected={selectedPlan?.name === plan.name}
             />
           ))}
         </SimpleGrid>

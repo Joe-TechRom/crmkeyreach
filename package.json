@@ -40,7 +40,7 @@
     "leaflet": "^1.9.4",
     "lru-cache": "^10.4.3",
     "moment": "^2.29.4",
-    "next": "^14.1.0",
+    "next": "^15.1.6",
     "pa": "^0.1.1",
     "papaparse": "^5.4.1",
     "react": "^18.0.0",
@@ -53,7 +53,7 @@
     "react-type-animation": "^3.2.0",
     "rimraf": "^6.0.1",
     "sharp": "^0.33.5",
-    "stripe": "^17.5.0",
+    "stripe": "^17.6.0",
     "styled-components": "^6.1.14",
     "zustand": "^5.0.3"
   },

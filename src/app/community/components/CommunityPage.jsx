@@ -19,8 +19,8 @@ import {
 } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { FaFacebook, FaHeart, FaComment, FaShare, FaImage } from 'react-icons/fa';
-import supabase from '@/lib/supabaseClient'; // Import client-side client
-import { signInWithFacebook, getCurrentUser } from '@/lib/supabase-auth';
+import { createBrowserClient } from '@/lib/supabaseClient';
+import { signInWithFacebook } from '@/lib/supabaseClient';
 import PostCreator from './PostCreator';
 import ConnectButton from './ConnectButton';
 import Engagement from './Engagement';
@@ -127,20 +127,35 @@ const CommunityPage = () => {
   const [post, setPost] = useState({});
   const fileInputRef = useRef(null);
   const toast = useToast();
-
   const bgColor = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.600', 'gray.300');
+  const [supabase] = useState(() => createBrowserClient());
 
   useEffect(() => {
-    fetchPosts();
-    setupRealtime();
-    checkUser();
-  }, []);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          setUser(session.user);
+          await fetchPosts();
+        } else {
+          setUser(null);
+        }
+      }
+    );
 
-  const checkUser = async () => {
-    const { user } = await getCurrentUser();
-    setUser(user);
-  };
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        await fetchPosts();
+      }
+    };
+
+    initializeAuth();
+    setupRealtime();
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   const fetchPosts = async () => {
     const { data, error } = await supabase
@@ -148,39 +163,80 @@ const CommunityPage = () => {
       .select('*')
       .order('created_at', { ascending: false });
 
+    if (error) {
+      console.error("Error fetching posts:", error);
+      return;
+    }
     if (data) setPosts(data);
   };
 
   const setupRealtime = () => {
-    supabase
+    const channel = supabase
       .channel('public:posts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-        fetchPosts();
-      })
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'posts' }, 
+        () => {
+          fetchPosts();
+        }
+      )
       .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   };
 
   const handleLogin = async () => {
-    const { error } = await signInWithFacebook();
-    if (!error) {
-      const { user } = await getCurrentUser();
-      setUser(user);
+    const { data, error } = await signInWithFacebook();
+    
+    if (error) {
+      toast({
+        title: 'Facebook Login Failed',
+        description: error.message || 'Could not sign in with Facebook.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
     }
+
+    toast({
+      title: 'Login Successful',
+      description: 'Welcome to KeyReach Community!',
+      status: 'success',
+      duration: 3000,
+      isClosable: true,
+    });
   };
 
   const handleImageUpload = async (file) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
+
     const { data, error } = await supabase.storage
       .from('post-images')
-      .upload(fileName, file);
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
-    if (data) {
-      const { publicURL } = supabase.storage
-        .from('post-images')
-        .getPublicUrl(fileName);
-      return publicURL;
+    if (error) {
+      toast({
+        title: 'Image Upload Failed',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return null;
     }
+
+    const { data: publicUrlData } = supabase
+      .storage
+      .from('post-images')
+      .getPublicUrl(fileName);
+
+    return publicUrlData.publicUrl;
   };
 
   const createPost = async () => {
@@ -190,30 +246,42 @@ const CommunityPage = () => {
       let imageUrl = null;
       if (image) {
         imageUrl = await handleImageUpload(image);
+        if (!imageUrl) return;
       }
 
-      await supabase.from('posts').insert([
-        {
-          content: newPost,
-          image_url: imageUrl,
-          user_id: user?.id,
-          user_name: user?.user_metadata?.full_name,
-          user_avatar: user?.user_metadata?.avatar_url,
-        },
-      ]);
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([
+          {
+            content: newPost,
+            image_url: imageUrl,
+            user_id: user?.id,
+            user_name: user?.user_metadata?.full_name,
+            user_avatar: user?.user_metadata?.avatar_url,
+          },
+        ])
+        .select()
+        .single();
 
+      if (error) throw error;
+
+      setPosts(prevPosts => [data, ...prevPosts]);
       setNewPost('');
       setImage(null);
+
       toast({
         title: 'Post created successfully!',
         status: 'success',
         duration: 3000,
+        isClosable: true,
       });
     } catch (error) {
       toast({
         title: 'Error creating post',
+        description: error.message,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
+        isClosable: true,
       });
     }
   };
@@ -221,12 +289,6 @@ const CommunityPage = () => {
   const handleJoinCommunity = async () => {
     if (!user) {
       await handleLogin();
-      toast({
-        title: 'Welcome to KeyReach Community!',
-        description: 'Start sharing and connecting with fellow professionals',
-        status: 'success',
-        duration: 5000,
-      });
     }
   };
 
@@ -252,7 +314,6 @@ const CommunityPage = () => {
               bgGradient="linear(to-t, blackAlpha.600, transparent)"
             />
           </Box>
-
           <Box
             bg={bgColor}
             rounded="xl"
@@ -278,10 +339,9 @@ const CommunityPage = () => {
                 <Heading size="xl" mb={2}>
                   {COMMUNITY_DATA.name}
                 </Heading>
-                <Text color="gray.600">{COMMUNITY_DATA.description}</Text>
+                <Text color={textColor}>{COMMUNITY_DATA.description}</Text>
               </Box>
             </Flex>
-
             <Flex justify="space-between" align="center">
               <Stack direction="row" spacing={6}>
                 <Text fontWeight="bold">{COMMUNITY_DATA.members}</Text>

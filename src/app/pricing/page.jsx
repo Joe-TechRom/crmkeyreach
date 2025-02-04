@@ -28,7 +28,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { calculatePrice } from '@/utils/pricing'; // Import price calculation
 import { subscriptionPlans } from '@/config/plans'; // Import plan data
-import { PlanCard } from '@/components/pricing/PlanCard'; // Corrected import path
+import { PlanCard } from '@/components/pricing/PlanCard';
 
 const shimmer = keyframes`
   from {background-position: 0 0;}
@@ -54,7 +54,6 @@ const MotionText = motion(Text);
 function PricingPage() {
   const router = useRouter();
   const [isYearly, setIsYearly] = useState(false);
-  const [additionalUsers, setAdditionalUsers] = useState(0); // Initialize additionalUsers state
   const yearlyDiscount = 0.10;
   const bgGradient = useColorModeValue(
     'radial-gradient(circle at 0% 0%, rgba(0, 102, 255, 0.1) 0%, transparent 30%), radial-gradient(circle at 100% 100%, rgba(91, 142, 239, 0.1) 0%, transparent 30%)',
@@ -67,16 +66,10 @@ function PricingPage() {
     router.push(`/auth/signup?tier=${planId}`);
   };
 
-  const calculateTotalPrice = (plan, isYearly, additionalUsers) => {
+  const calculateTotalPrice = (plan, isYearly) => {
     if (!plan) return 0; // Handle cases where plan is undefined
     const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
-    return plan.additionalUserPrice
-      ? parseFloat(price) + (additionalUsers * plan.additionalUserPrice)
-      : parseFloat(price);
-  };
-
-  const handleUpdateUsers = (value) => {
-    setAdditionalUsers(value);
+    return parseFloat(price);
   };
 
   const features = [
@@ -255,8 +248,6 @@ function PricingPage() {
                     isYearly={isYearly}
                     onSelect={handleStartTrial}
                     calculateTotalPrice={calculateTotalPrice}
-                    additionalUsers={additionalUsers}
-                    onUpdateUsers={handleUpdateUsers}
                   />
                 );
               })}

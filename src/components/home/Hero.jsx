@@ -1,11 +1,11 @@
 'use client'
+
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Box, Container, Grid, Heading, Text, Stack, Button, useColorModeValue, Icon } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
-import { ArrowForwardIcon, CheckIcon } from '@chakra-ui/icons'
-import { StartTrial } from '@/components/pricing/StartTrial'
+import { ArrowForwardIcon } from '@chakra-ui/icons'
 
 const float = keyframes`
   0% { transform: translateY(0) rotate(0deg); }
@@ -214,28 +214,25 @@ const Hero = () => {
                     direction={{ base: 'column', sm: 'row' }}
                     spacing={{ base: 5, sm: 8 }}
                   >
-                    // Replace the StartTrial component with a direct signup button
-<Button
-  as={Link}
-  href="/auth/signup?plan=Basic" // Add plan parameter for proper flow
-  size="lg"
-  px={10}
-  h={16}
-  fontSize="lg"
-  rightIcon={<ArrowForwardIcon boxSize={5} />}
-  bgGradient={colors.orange.gradient}
-  color="white"
-  rounded="2xl"
-  _hover={{
-    transform: 'translateY(-2px)',
-    shadow: '2xl'
-  }}
-  transition="all 0.2s"
->
-  Get Started Now
-</Button>
-
-
+                    <Button
+                      as={Link}
+                      href="/auth/signup?plan=Basic"
+                      size="lg"
+                      px={10}
+                      h={16}
+                      fontSize="lg"
+                      rightIcon={<ArrowForwardIcon boxSize={5} />}
+                      bgGradient={colors.orange.gradient}
+                      color="white"
+                      rounded="2xl"
+                      _hover={{
+                        transform: 'translateY(-2px)',
+                        shadow: '2xl'
+                      }}
+                      transition="all 0.2s"
+                    >
+                      Get Started Now
+                    </Button>
 
                     <Button
                       as={Link}
@@ -256,17 +253,6 @@ const Hero = () => {
                       Watch Demo
                     </Button>
                   </Stack>
-
-                  <Text
-                    fontSize="sm"
-                    color={subTextColor}
-                    display="flex"
-                    alignItems="center"
-                    gap={2}
-                  >
-                    <Icon as={CheckIcon} color="green.500" />
-                    No credit card required for trial
-                  </Text>
                 </Stack>
               </motion.div>
             </Box>

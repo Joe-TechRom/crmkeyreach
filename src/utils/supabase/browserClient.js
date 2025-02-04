@@ -1,4 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createBrowserClient } from '@supabase/ssr';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -8,15 +8,15 @@ const supabase = createBrowserClient(
       persistSession: true,
       storageKey: 'keyreach-auth',
       autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce'
+      detectSessionInUrl: true, // Consider the security implications
+      flowType: 'pkce',
     },
     realtime: {
       params: {
-        eventsPerSecond: 10
-      }
-    }
+        eventsPerSecond: 10,
+      },
+    },
   }
-)
+);
 
-export { supabase }
+export { supabase };

@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  swcMinify: true,
   reactStrictMode: true,
 
   images: {
@@ -58,9 +57,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb'
     },
-    optimizePackageImports: ['@chakra-ui/react', 'framer-motion'],
-    instrumentationHook: true,
-    serverComponentsExternalPackages: []
+    optimizePackageImports: ['@chakra-ui/react', 'framer-motion']
   },
 
   compiler: {
@@ -73,7 +70,6 @@ const nextConfig = {
   generateEtags: true,
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
   productionBrowserSourceMaps: false,
-  optimizeFonts: true,
 
   onDemandEntries: {
     maxInactiveAge: 25 * 1000,

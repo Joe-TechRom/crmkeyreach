@@ -1,3 +1,4 @@
+// src/components/pricing/PlanCard.jsx
 'use client';
 
 import {
@@ -16,53 +17,39 @@ import {
   NumberIncrementStepper,
   NumberDecrementStepper,
   useToast,
-  useColorModeValue, // Import useColorModeValue
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { MdCheckCircle } from 'react-icons/md';
 import { createCheckoutSession } from '@/utils/payments';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useState, useEffect } from 'react'; // Import useState
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 export const PlanCard = ({
   plan,
   isSelected,
   isYearly,
-  onSelect,
-  additionalUsers,
-  onUpdateUsers,
   calculateTotalPrice,
 }) => {
   const supabase = createClientComponentClient();
   const toast = useToast();
-  const totalPrice = calculateTotalPrice(plan, isYearly, additionalUsers);
-  const cardBg = useColorModeValue(isSelected ? 'blue.50' : 'white', isSelected ? 'blue.700' : 'gray.700'); // Use useColorModeValue for background
-  const textColor = useColorModeValue('gray.700', 'whiteAlpha.900'); // Use useColorModeValue for text color
+  const router = useRouter(); // Initialize useRouter
+  const [additionalUsers, setAdditionalUsers] = useState(1); // Initialize additionalUsers state
+  const [totalPrice, setTotalPrice] = useState(0); // Initialize totalPrice state
+  const cardBg = useColorModeValue(isSelected ? 'blue.50' : 'white', isSelected ? 'blue.700' : 'gray.700');
+  const textColor = useColorModeValue('gray.700', 'whiteAlpha.900');
 
-  const handleSubscribe = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+  useEffect(() => {
+    setAdditionalUsers(1);
+  }, [plan.id]);
 
-    if (!user) {
-      toast({
-        title: 'Please sign in first',
-        status: 'warning',
-        duration: 5000,
-      });
-      return;
-    }
+  useEffect(() => {
+    // Recalculate totalPrice whenever additionalUsers or isYearly changes
+    setTotalPrice(calculateTotalPrice(plan, isYearly, additionalUsers));
+  }, [additionalUsers, isYearly, plan, calculateTotalPrice]);
 
-    try {
-      await createCheckoutSession(
-        plan.id,
-        isYearly,
-        additionalUsers,
-        user.id
-      );
-    } catch (error) {
-      toast({
-        title: 'Error creating checkout session',
-        status: 'error',
-        duration: 5000,
-      });
-    }
+  const handleSignup = () => {
+    router.push(`/auth/signup?tier=${plan.id}`); // Navigate to signup page
   };
 
   return (
@@ -70,7 +57,7 @@ export const PlanCard = ({
       borderWidth="1px"
       borderRadius="xl"
       p={6}
-      bg={cardBg} // Use dynamic background
+      bg={cardBg}
       position="relative"
       transition="all 0.2s"
       _hover={{ transform: 'translateY(-4px)', shadow: 'xl' }}
@@ -89,9 +76,9 @@ export const PlanCard = ({
         </Badge>
       )}
       <Stack spacing={4}>
-        <Heading size="lg" color={textColor}>{plan.name}</Heading> {/* Use dynamic text color */}
+        <Heading size="lg" color={textColor}>{plan.name}</Heading>
         <Stack direction="row" align="flex-end">
-          <Text fontSize="4xl" fontWeight="bold" color={textColor}> {/* Use dynamic text color */}
+          <Text fontSize="4xl" fontWeight="bold" color={textColor}>
             ${totalPrice}
           </Text>
           <Text color="gray.500">
@@ -105,14 +92,16 @@ export const PlanCard = ({
             </Text>
             <NumberInput
               value={additionalUsers}
-              onChange={(value) => onUpdateUsers(parseInt(value))}
-              min={0}
+              onChange={(value) => setAdditionalUsers(parseInt(value))}
+              min={1}
               max={plan.maxUsers - 1}
             >
               <NumberInputField />
               <NumberInputStepper>
                 <NumberIncrementStepper />
-                <NumberDecrementStepper />
+                <NumberDecrementStepper>
+                  <NumberDecrementStepper />
+                </NumberDecrementStepper>
               </NumberInputStepper>
             </NumberInput>
             <Text fontSize="sm" color="gray.500">
@@ -124,17 +113,17 @@ export const PlanCard = ({
           {plan.features.map((feature, index) => (
             <ListItem key={index} display="flex" alignItems="center">
               <ListIcon as={MdCheckCircle} color="green.500" />
-              <Text color={textColor}>{feature.text}</Text> {/* Use dynamic text color */}
+              <Text color={textColor}>{feature.text}</Text>
             </ListItem>
           ))}
         </List>
         <Button
           colorScheme="blue"
           size="lg"
-          onClick={handleSubscribe}
+          onClick={handleSignup} // Use handleSignup function
           variant={isSelected ? 'solid' : 'outline'}
         >
-          Start Free Trial
+          Sign Up Now {/* Change button text */}
         </Button>
       </Stack>
     </Box>

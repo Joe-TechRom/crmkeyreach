@@ -1,13 +1,14 @@
-export function logError(message, error, details = {}) {
-  console.error(message, error, details);
-  // In a production environment, you would replace console.error with a logging service
-  // Example:
-  // if (process.env.NODE_ENV === 'production') {
-  //   Sentry.captureException(error, {
-  //     extra: {
-  //       message,
-  //       details,
-  //     },
-  //   });
-  // }
+// /src/lib/utils/log.js
+export const logError = (component, message, error, details) => {
+  console.error(
+    JSON.stringify({
+      host: process.env.VERCEL_URL || 'localhost',
+      component,
+      msg: message,
+      level: 'error',
+      error: error?.message || error,
+      details: details,
+      time: new Date().toISOString()
+    })
+  )
 }

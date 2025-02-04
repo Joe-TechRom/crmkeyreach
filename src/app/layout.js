@@ -1,7 +1,6 @@
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
-import { AuthProvider } from '@/components/auth/AuthProvider'
 import ScrollToTop from '@/components/utils/ScrollToTop'
 import ThemeToggle from '@/components/utils/ThemeToggle'
 import Footer from '@/components/layout/Footer'
@@ -75,59 +74,57 @@ export default function RootLayout({ children }) {
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
-          <AuthProvider>
+          <Box 
+            as="div"
+            display="flex"
+            flexDirection="column"
+            minHeight="100vh"
+            width="100%"
+            position="relative"
+            overflow="hidden"
+          >
+            <Navbar />
+            
+            <Box
+              position="fixed"
+              top="0"
+              left="0"
+              right="0"
+              bottom="0"
+              zIndex="-1"
+              bgGradient="radial(circle at top right, purple.50, transparent 70%)"
+              _dark={{
+                bgGradient: "radial(circle at top right, purple.900, transparent 70%)"
+              }}
+              opacity="0.5"
+              sx={{ transition: 'background 0.3s ease' }}
+            />
+            
             <Box 
-              as="div"
-              display="flex"
-              flexDirection="column"
-              minHeight="100vh"
+              as="main"
+              flexGrow={1}
               width="100%"
               position="relative"
-              overflow="hidden"
+              zIndex="1"
+              pt={{ base: '76px', md: '80px' }}
             >
-              <Navbar />
-              
-              <Box
-                position="fixed"
-                top="0"
-                left="0"
-                right="0"
-                bottom="0"
-                zIndex="-1"
-                bgGradient="radial(circle at top right, purple.50, transparent 70%)"
-                _dark={{
-                  bgGradient: "radial(circle at top right, purple.900, transparent 70%)"
-                }}
-                opacity="0.5"
-                sx={{ transition: 'background 0.3s ease' }}
-              />
-              
-              <Box 
-                as="main"
-                flexGrow={1}
-                width="100%"
-                position="relative"
-                zIndex="1"
-                pt={{ base: '76px', md: '80px' }}
-              >
-                {children}
-              </Box>
-              <Footer />
-              
-              <Box 
-                position="fixed"
-                bottom="4"
-                right="4"
-                zIndex="tooltip"
-                display="flex"
-                flexDirection="column"
-                gap="3"
-              >
-                <ScrollToTop />
-                <ThemeToggle />
-              </Box>
+              {children}
             </Box>
-          </AuthProvider>
+            <Footer />
+            
+            <Box 
+              position="fixed"
+              bottom="4"
+              right="4"
+              zIndex="tooltip"
+              display="flex"
+              flexDirection="column"
+              gap="3"
+            >
+              <ScrollToTop />
+              <ThemeToggle />
+            </Box>
+          </Box>
         </Providers>
       </body>
     </html>

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FcGoogle } from 'react-icons/fc';
 import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
-import supabase from '@/lib/supabaseClient';
 import {
   Box,
   Container,
@@ -25,6 +24,7 @@ import {
   InputRightElement,
   Icon,
 } from '@chakra-ui/react';
+import { createBrowserClient, signInWithFacebook, supabase } from '@/lib/supabaseClient'; // Import createBrowserClient and signInWithFacebook
 
 function SignupPage() {
   const textColor = useColorModeValue('gray.700', 'gray.200');
@@ -32,7 +32,6 @@ function SignupPage() {
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -40,7 +39,6 @@ function SignupPage() {
     name: '',
     phoneNumber: '',
   });
-
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
@@ -50,11 +48,12 @@ function SignupPage() {
   const planType = searchParams.get('plan') || 'single_user';
 
   const checkEmailExists = async (email) => {
+    const supabase = createBrowserClient(); // Create the client
     const { data, error } = await supabase
       .from('profiles')
       .select('email')
       .eq('email', email)
-      .single();
+      .maybeSingle(); // Use maybeSingle to avoid errors if no record is found
     return !!data;
   };
 
@@ -84,46 +83,42 @@ function SignupPage() {
     }));
   };
 
+  const createProfile = async (userId, userData) => {
+    const supabase = createBrowserClient(); // Create the client
+    const { error } = await supabase
+      .from('profiles')
+      .insert({
+        user_id: userId,
+        email: userData.email,
+        name: userData.name,
+        subscription_tier: planType,
+        subscription_status: 'pending',
+        billing_cycle: searchParams.get('billing') || 'monthly',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    if (error) throw error;
+  };
+
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
     try {
-      const { data: { user }, error } = await supabase.auth.signInWithOAuth({
+      const supabase = createBrowserClient(); // Create the client
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
+          redirectTo: `${window.location.origin}/checkout?tier=${planType}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
           },
         },
       });
-
-      if (user?.email) {
-        const emailExists = await checkEmailExists(user.email);
-        if (emailExists) {
-          toast({
-            title: 'Account exists',
-            description: 'An account with this email already exists. Please sign in instead.',
-            status: 'error',
-            duration: 5000,
-          });
-          router.push('/signin');
-          return;
-        }
+      if (error) {
+        throw error;
       }
-
-      const { error: authError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-
-      if (authError) throw authError;
-
+      // No need to create profile here, it's handled in the redirectTo URL
+      // The user will be redirected to /checkout?tier=${planType} after successful Google authentication
     } catch (error) {
       console.error('Google signup error:', error);
       toast({
@@ -148,43 +143,37 @@ function SignupPage() {
       });
       return;
     }
-
     setIsLoading(true);
     try {
       const emailExists = await checkEmailExists(formData.email);
       if (emailExists) {
         toast({
           title: 'Email already registered',
-          description: 'This email is already registered. Please sign in or use a different email.',
+          description:
+            'This email is already registered. Please sign in or use a different email.',
           status: 'error',
           duration: 5000,
         });
+        router.push('/auth/signin');
         return;
       }
-
-      const { error } = await supabase.auth.signUp({
+      const supabase = createBrowserClient(); // Create the client
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?tier=${planType}`,
           data: {
-            plan_type: planType,
             full_name: formData.name,
             phone_number: formData.phoneNumber,
           },
+          redirectTo: `${window.location.origin}/checkout?tier=${planType}`, // Redirect to checkout
         },
       });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Verification email sent',
-        description: 'Please check your email to verify your account.',
-        status: 'success',
-        duration: 5000,
-      });
-      router.push('/auth/verify-email');
-
+      if (error) {
+        throw error;
+      }
+      // No need to create profile here, it's handled in the redirectTo URL
+      // The user will be redirected to /checkout?tier=${planType} after successful signup
     } catch (error) {
       console.error('Signup error:', error);
       toast({
@@ -209,7 +198,6 @@ function SignupPage() {
             Complete your registration to continue with your {planType} plan
           </Text>
         </Stack>
-
         <Box
           w="full"
           bg={bgColor}
@@ -236,7 +224,6 @@ function SignupPage() {
             >
               Sign up with Google
             </Button>
-
             <HStack w="full">
               <Divider />
               <Text fontSize="sm" color={textColor} whiteSpace="nowrap">
@@ -244,7 +231,6 @@ function SignupPage() {
               </Text>
               <Divider />
             </HStack>
-
             <form onSubmit={handleSignup} style={{ width: '100%' }}>
               <Stack spacing={4}>
                 <FormControl isRequired>
@@ -258,7 +244,6 @@ function SignupPage() {
                     color={textColor}
                   />
                 </FormControl>
-
                 <FormControl isRequired>
                   <FormLabel color={textColor}>Email address</FormLabel>
                   <Input
@@ -270,7 +255,6 @@ function SignupPage() {
                     color={textColor}
                   />
                 </FormControl>
-
                 <FormControl isRequired>
                   <FormLabel color={textColor}>Phone Number</FormLabel>
                   <Input
@@ -282,7 +266,6 @@ function SignupPage() {
                     color={textColor}
                   />
                 </FormControl>
-
                 <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel color={textColor}>Password</FormLabel>
                   <InputGroup>
@@ -305,7 +288,6 @@ function SignupPage() {
                     </InputRightElement>
                   </InputGroup>
                 </FormControl>
-
                 <FormControl isRequired isInvalid={!!passwordError}>
                   <FormLabel color={textColor}>Confirm Password</FormLabel>
                   <InputGroup>
@@ -327,11 +309,8 @@ function SignupPage() {
                       </Button>
                     </InputRightElement>
                   </InputGroup>
-                  {passwordError && (
-                    <FormErrorMessage>{passwordError}</FormErrorMessage>
-                  )}
+                  {passwordError && <FormErrorMessage>{passwordError}</FormErrorMessage>}
                 </FormControl>
-
                 <Button
                   type="submit"
                   colorScheme="blue"

@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiCheck, FiArrowRight, FiAward } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSubscriptionFromProfile } from '@/lib/utils/subscription';
 import { logError } from '@/lib/utils/log';
 import supabase from '@/lib/supabaseClient';
 import {
@@ -50,32 +49,13 @@ const itemVariants = {
   },
 };
 
-interface SessionData {
-  plan: {
-    name: string;
-    interval: string;
-    amount: number;
-  };
-  status: string;
-  profile: {
-    subscription_tier: string;
-  };
-  metadata: {
-    userId: string;
-    planId: string;
-    billingCycle: string;
-    additionalUsers: string;
-  };
-}
-
 export default function SuccessPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
-  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
-
   const colors = {
     orange: {
       light: '#FF9A5C',
@@ -83,21 +63,19 @@ export default function SuccessPage() {
       gradient: 'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)',
     },
   };
-
   const gradientBg = `
     radial-gradient(circle at 0% 0%, ${colors.orange.light}15 0%, transparent 50%),
     radial-gradient(circle at 100% 0%, ${colors.orange.main}10 0%, transparent 50%),
     radial-gradient(circle at 100% 100%, ${colors.orange.light}15 0%, transparent 50%),
     radial-gradient(circle at 0% 100%, ${colors.orange.main}10 0%, transparent 50%)
   `;
-
   const cardBg = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.800', 'white');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const highlightColor = useColorModeValue('blue.500', 'blue.300');
 
   useEffect(() => {
-    if (sessionData) {
+    if (subscriptionData) {
       confetti({
         particleCount: 100,
         spread: 70,
@@ -105,95 +83,140 @@ export default function SuccessPage() {
         colors: ['#4299E1', '#FF9A5C', '#805AD5'],
       });
     }
-  }, [sessionData]);
+  }, [subscriptionData]);
 
   useEffect(() => {
-    const verifySession = async () => {
-      if (!sessionId) return;
+    const fetchSubscriptionData = async () => {
+      if (!sessionId) {
+        toast({
+          title: 'Missing Session ID',
+          description: 'Please return to the checkout page and try again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
+        router.push('/'); // Redirect to home if no session ID
+        return;
+      }
 
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) {
           logError('Session error:', sessionError.message, sessionError);
-          router.push('/auth');
-          return;
-        }
-        if (!session) {
-          router.push('/auth');
-          return;
-        }
-
-        const userId = session.user.id;
-        const profile = await getSubscriptionFromProfile(userId);
-
-        if (profile.error) {
-          logError('Profile fetch error:', profile.error, profile.details);
           toast({
-            title: 'Error Verifying Session',
-            description: 'Please contact support if the issue persists.',
+            title: 'Authentication Error',
+            description: 'Please sign in to view your subscription details.',
             status: 'error',
             duration: 5000,
             isClosable: true,
             position: 'top',
           });
+          router.push('/auth');
           return;
         }
 
-        // Fetch session from Stripe (server-side)
-        const res = await fetch('/api/create-checkout-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ session_id: sessionId, getSession: true }),
-        });
-
-        if (!res.ok) {
-          const errorData = await res.json();
-          console.error('Error fetching Stripe session:', errorData);
+        if (!session?.user?.id) {
           toast({
-            title: 'Error Verifying Session',
-            description: errorData.error || 'Failed to fetch session details.',
+            title: 'Authentication Required',
+            description: 'Please sign in to view your subscription details.',
             status: 'error',
             duration: 5000,
             isClosable: true,
             position: 'top',
           });
+          router.push('/auth');
           return;
         }
 
-        const { planName, billingCycle } = await res.json();
+        // Fetch Stripe Session and Update Profile
+        const updateProfile = async () => {
+          try {
+            const response = await fetch('/api/get-stripe-session', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ sessionId }),
+            });
 
-        const sessionData: SessionData = {
-          plan: {
-            name: planName || 'Basic',
-            interval: billingCycle || 'monthly',
-            amount: 0, // Amount is not available in profile
-          },
-          status: profile.subscription_status || 'active',
-          profile: {
-            subscription_tier: profile.subscription_tier || 'single_user',
-          },
-          metadata: {
-            userId: userId,
-            planId: planName,
-            billingCycle: billingCycle || 'monthly',
-            additionalUsers: profile.additional_users?.toString() || '0',
-          },
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to retrieve Stripe session.');
+            }
+
+            const { session: stripeSession } = await response.json();
+
+            const { userId, tier, additionalUsers } = stripeSession.metadata;
+
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                subscription_status: 'active',
+                subscription_tier: tier,
+                additional_users: parseInt(additionalUsers),
+                stripe_customer_id: stripeSession.customer,
+                stripe_subscription_id: stripeSession.subscription?.id,
+                subscription_period_end: stripeSession.subscription?.current_period_end ? new Date(stripeSession.subscription.current_period_end * 1000).toISOString() : null,
+              })
+              .eq('user_id', userId);
+
+            if (updateError) {
+              throw updateError;
+            }
+
+            // Fetch updated profile data
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', userId)
+              .single();
+
+            if (profileError) {
+              logError('Profile fetch error:', profileError.message, profileError);
+              toast({
+                title: 'Error Fetching Profile',
+                description: 'Could not retrieve your subscription details. Please contact support.',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+                position: 'top',
+              });
+              router.push('/'); // Redirect on error
+              return;
+            }
+
+            setSubscriptionData(profileData);
+            localStorage.removeItem('selectedTier');
+            toast({
+              title: '🎉 Subscription Activated!',
+              description: 'Welcome to your premium subscription',
+              status: 'success',
+              duration: 5000,
+              isClosable: true,
+              position: 'top',
+            });
+
+          } catch (error) {
+            logError('Error updating profile:', error);
+            toast({
+              title: 'Error Activating Subscription',
+              description: error.message || 'Failed to activate your subscription. Please contact support.',
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+              position: 'top',
+            });
+            router.push('/'); // Redirect to home or an error page
+          } finally {
+            setLoading(false);
+          }
         };
 
-        setSessionData(sessionData);
-        localStorage.removeItem('selectedTier');
-        toast({
-          title: '🎉 Subscription Activated!',
-          description: 'Welcome to your premium subscription',
-          status: 'success',
-          duration: 5000,
-          isClosable: true,
-          position: 'top',
-        });
+        await updateProfile();
+
       } catch (error) {
-        logError('Error verifying session:', error);
+        logError('Error fetching subscription data:', error);
         toast({
           title: 'Error Verifying Session',
           description: 'Please contact support if the issue persists.',
@@ -202,34 +225,64 @@ export default function SuccessPage() {
           isClosable: true,
           position: 'top',
         });
+        router.push('/'); // Redirect on error
       } finally {
         setLoading(false);
       }
     };
 
-    verifySession();
+    fetchSubscriptionData();
   }, [sessionId, router, toast]);
 
   const handleGoToDashboard = () => {
-    const tier = sessionData?.profile?.subscription_tier || 'single_user';
-    const dashboardRoutes = {
-      'single_user': '/dashboard/single-user',
-      'team': '/dashboard/team',
-      'corporate': '/dashboard/corporate',
-    };
-    router.push(dashboardRoutes[tier] || '/dashboard/single-user');
+    if (!subscriptionData) {
+      toast({
+        title: 'Subscription Details Missing',
+        description: 'Please wait for the subscription details to load before navigating to the dashboard.',
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+        position: 'top',
+      });
+      return;
+    }
+
+    const planType = subscriptionData?.plan_type;
+    let dashboardRoute = '/dashboard'; // Default route
+
+    switch (planType) {
+      case 'single_user':
+        dashboardRoute = '/dashboard/single-user';
+        break;
+      case 'team':
+        dashboardRoute = '/dashboard/team';
+        break;
+      case 'corporate':
+        dashboardRoute = '/dashboard/corporate';
+        break;
+      default:
+        logError('Invalid plan type:', planType);
+        toast({
+          title: 'Invalid Plan Type',
+          description: 'Could not determine the correct dashboard. Redirecting to default dashboard.',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
+    }
+    router.push(dashboardRoute);
   };
 
   const renderPlanDetails = () => {
-    if (!sessionData?.plan) return null;
+    if (!subscriptionData) return null;
 
     const planDetails = [
-      { label: 'Plan', value: sessionData.plan.name || 'Basic' },
-      {
-        label: 'Billing Cycle',
-        value: sessionData.plan.interval === 'month' ? 'Monthly' : 'Yearly',
-      },
-      { label: 'Status', value: sessionData.status || 'Active' },
+      { label: 'Full Name', value: subscriptionData.name || 'N/A' },
+      { label: 'Plan', value: subscriptionData.subscription_tier || 'N/A' }, // Use subscription_tier
+      { label: 'Billing Cycle', value: subscriptionData.billing_cycle || 'N/A' },
+      { label: 'Status', value: subscriptionData.subscription_status || 'N/A' },
+      { label: 'Email', value: subscriptionData.email || 'N/A' },
     ];
 
     return (
@@ -293,7 +346,7 @@ export default function SuccessPage() {
                 </Heading>
               </VStack>
             </MotionBox>
-            {sessionData && (
+            {subscriptionData && (
               <MotionBox
                 variants={itemVariants}
                 w="full"

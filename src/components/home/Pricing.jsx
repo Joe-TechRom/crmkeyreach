@@ -1,3 +1,4 @@
+// pricing/page.jsx
 'use client'
 
 import { useState } from 'react'
@@ -127,14 +128,14 @@ export default function Pricing() {
       title: 'Team',
       price: '99.99',
       planId: 'Team',
-      features: subscriptionPlans.team.features,
+      features: [...subscriptionPlans.team.features], // Create a new array
       isPopular: true
     },
     {
       title: 'Corporate',
       price: '195.99',
       planId: 'Corporate',
-      features: subscriptionPlans.corporate.features
+      features: [...subscriptionPlans.corporate.features] // Create a new array
     }
   ]
 
@@ -167,7 +168,6 @@ export default function Pricing() {
             <Text>Yearly (Save 10%)</Text>
           </Flex>
         </Stack>
-
         <Stack
           direction={{ base: 'column', lg: 'row' }}
           spacing={8}
