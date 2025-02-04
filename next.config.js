@@ -1,34 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-
+  output: 'standalone',
+  
   images: {
     remotePatterns: [
-      { protocol: 'http', hostname: 'localhost' },
-      { protocol: 'https', hostname: 'your-supabase-project.supabase.co' },
-      { protocol: 'https', hostname: '*.supabase.co' },
-      { protocol: 'https', hostname: 'keyreach-crm.vercel.app' }
+      { protocol: 'https', hostname: 'jntbefyqkqciwgkofttx.supabase.co' },
+      { protocol: 'https', hostname: '*.supabase.co' }
     ],
-    domains: ['localhost', 'keyreach-crm.vercel.app'],
-    unoptimized: true,
-    minimumCacheTTL: 60,
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384]
+    unoptimized: true
   },
 
-  output: 'standalone',
-
-  webpack: (config, { dev, isServer }) => {
-    config.resolve = {
-      ...config.resolve,
-      fallback: {
-        net: false,
-        dns: false,
-        tls: false,
-        fs: false,
-        request: false,
-        ...config.resolve.fallback,
-      }
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      'perf_hooks': false,
+      net: false,
+      dns: false,
+      tls: false,
+      fs: false,
+      request: false
     };
 
     config.module.rules.push({
@@ -48,32 +39,15 @@ const nextConfig = {
 
   experimental: {
     optimizeCss: true,
-    turbo: {
-      rules: {
-        '*.svg': ['@svgr/webpack']
-      }
-    },
-    scrollRestoration: true,
+    optimizePackageImports: ['@chakra-ui/react', 'framer-motion'],
     serverActions: {
       bodySizeLimit: '2mb'
-    },
-    optimizePackageImports: ['@chakra-ui/react', 'framer-motion']
+    }
   },
 
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
     styledComponents: true
-  },
-
-  poweredByHeader: false,
-  compress: true,
-  generateEtags: true,
-  pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-  productionBrowserSourceMaps: false,
-
-  onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2
   },
 
   headers: async () => [{

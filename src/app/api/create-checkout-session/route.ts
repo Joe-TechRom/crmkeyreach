@@ -1,38 +1,34 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
+});
 
 export async function POST(request) {
-  const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-  
-  // Get user session
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session?.user) {
-    return Response.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    const { priceId } = await request.json();
-    
-    // Create Stripe checkout session
-    const checkoutSession = await stripe.checkout.sessions.create({
+    const body = await request.json();
+    const { priceId, planName, isYearly, additionalUsers } = body;
+
+    const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout?error=checkout_cancelled`,
       metadata: {
-        userId: session.user.id
+        planName,
+        isYearly: isYearly.toString(),
+        additionalUsers: additionalUsers.toString(),
       },
-      customer_email: session.user.email
     });
 
-    return Response.json({ sessionId: checkoutSession.id });
+    return NextResponse.json({ sessionId: session.id });
   } catch (error) {
-    return Response.json({ message: error.message }, { status: 500 });
+    console.error('Error creating checkout session:', error);
+    return NextResponse.json(
+      { message: error.message || 'Failed to create checkout session' },
+      { status: 500 }
+    );
   }
 }

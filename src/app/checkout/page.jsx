@@ -45,9 +45,7 @@ const PricingCard = ({
 }) => {
   const displayPrice = isYearly ? yearlyPrice : monthlyPrice;
   const billingPeriod = isYearly ? '/year' : '/month';
-  const hasAdditionalUsers = plan.additionalUserPrice !== undefined && 
-    plan.additionalUserPrice !== null && 
-    plan.name !== 'Single User';
+  const hasAdditionalUsers = plan.additionalUserPrice !== undefined && plan.additionalUserPrice !== null && plan.name !== 'Single User';
 
   return (
     <motion.div
@@ -153,25 +151,82 @@ export default function CheckoutPage() {
   const [session, setSession] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const searchParams = useSearchParams();
+  const [supabase, setSupabase] = useState(null);
 
   useEffect(() => {
-    const fetchSession = async () => {
-      const supabase = createBrowserClient();
-      const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-      setSession(supabaseSession);
+    const initializeSupabase = async () => {
+      const client = createBrowserClient();
+      setSupabase(client);
     };
-    fetchSession();
+    initializeSupabase();
   }, []);
+
+  useEffect(() => {
+    const handleAuthToken = async () => {
+      if (!supabase) return;
+
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        try {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          const { data: { session: supabaseSession }, error } = await supabase.auth.getSession();
+          if (supabaseSession) {
+            console.log('Session set successfully:', supabaseSession);
+            setSession(supabaseSession);
+          } else {
+            console.error('Failed to set session:', error);
+          }
+
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState({}, document.title, cleanUrl);
+        } catch (error) {
+          console.error('Error setting session:', error);
+        }
+      }
+    };
+    handleAuthToken();
+  }, [supabase]);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
+      toast({
+        title: 'Checkout Error',
+        description: 'There was an error during checkout. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [searchParams, toast]);
 
   const handlePlanSelection = async (plan) => {
     if (isLoading) return;
-    
     setSelectedPlan(plan);
-    
+
     try {
       setIsLoading(true);
 
-      if (!session?.user?.id) {
+      if (!supabase) {
+        toast({
+          title: 'Supabase Not Initialized',
+          description: 'Please try again in a moment.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (!session) {
         toast({
           title: 'Authentication Required',
           description: 'Please sign in to continue',
@@ -179,15 +234,11 @@ export default function CheckoutPage() {
           duration: 5000,
           isClosable: true,
         });
-        router.push('/auth');
+        router.push('/auth/signin?redirect=/checkout');
         return;
       }
 
-      const priceId = isYearly ? plan.yearlyPriceId : plan.monthlyPriceId;
-      const additionalUserCount = Number(additionalUsers[plan.name] || 0);
-
-      const { sessionId } = await createCheckoutSession(priceId);
-      
+      const { sessionId } = await createCheckoutSession(plan, isYearly);
       if (sessionId) {
         const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
         await stripe.redirectToCheckout({ sessionId });

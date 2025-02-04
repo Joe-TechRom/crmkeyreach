@@ -42,60 +42,78 @@ const SignInContent = () => {
   const { user, loading: userLoading } = useUser();
   const [redirecting, setRedirecting] = useState(false);
   const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
   const selectedTier = searchParams.get('tier') || 'single_user';
 
   useEffect(() => {
     const handleRedirect = async () => {
       if (!userLoading && user) {
         setRedirecting(true);
+        try {
+          const supabase = createBrowserClient();
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('subscription_status, subscription_tier')
+            .eq('user_id', user.id)
+            .single();
 
-        // Fetch user profile and redirect
-        const supabase = createBrowserClient();
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('subscription_status, subscription_tier')
-          .eq('user_id', user.id)
-          .single();
+          if (profileError) {
+            console.error('Error fetching profile:', profileError);
+            toast({
+              title: 'Error',
+              description: 'Failed to fetch user profile.',
+              status: 'error',
+              duration: 5000,
+            });
+            setRedirecting(false);
+            return;
+          }
 
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
+          if (redirect) {
+            router.push(redirect);
+          } else if (profile?.subscription_status === 'active' && profile?.subscription_tier) {
+            router.push(`/dashboard/${profile.subscription_tier}`);
+          } else {
+            router.push('/pricing');
+          }
+        } catch (error) {
+          console.error('Unexpected error during redirect:', error);
           toast({
             title: 'Error',
-            description: 'Failed to fetch user profile.',
+            description: 'An unexpected error occurred during redirect.',
             status: 'error',
             duration: 5000,
           });
+        } finally {
           setRedirecting(false);
-          return;
         }
-
-        if (profile?.subscription_status === 'active' && profile?.subscription_tier) {
-          router.push(`/dashboard/${profile.subscription_tier}`);
-        } else {
-          router.push('/pricing');
-        }
-        setRedirecting(false);
       }
     };
 
     handleRedirect();
-  }, [user, userLoading, router, toast]);
+  }, [user, userLoading, router, toast, redirect]);
 
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      console.log("Initiating Google signin with tier:", selectedTier);
+      console.log('Initiating Google signin with tier:', selectedTier);
       const supabase = createBrowserClient();
+
+      const redirectTo = redirect
+        ? `${window.location.origin}/auth/callback?tier=${selectedTier}&redirect=${encodeURIComponent(redirect)}`
+        : `${window.location.origin}/auth/callback?tier=${selectedTier}`;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?tier=${selectedTier}`,
+          redirectTo: redirectTo,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
           },
         },
       });
+
       if (error) {
         console.error('Google signin error:', error);
         toast({
@@ -122,12 +140,13 @@ const SignInContent = () => {
     e.preventDefault();
     try {
       setIsLoading(true);
-      console.log("Signing in with email:", email, "and tier:", selectedTier);
+      console.log('Signing in with email:', email, 'and tier:', selectedTier);
       const supabase = createBrowserClient();
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
       if (error) {
         console.error('Email/Password signin error:', error);
         toast({
@@ -136,23 +155,35 @@ const SignInContent = () => {
           status: 'error',
           duration: 5000,
         });
-      } else {
-        console.log("Email/Password signin successful.");
-        const supabase = createBrowserClient();
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          console.error('Error fetching user data:', userError);
-          toast({
-            title: 'Sign in failed',
-            description: userError.message,
-            status: 'error',
-            duration: 5000,
-          });
-          setIsLoading(false);
-          return;
-        }
+        return;
+      }
 
-        // Fetch user profile and redirect
+      console.log('Email/Password signin successful.');
+
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        toast({
+          title: 'Sign in failed',
+          description: userError.message,
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+
+      if (!userData?.user?.id) {
+        console.error('User ID is missing after sign-in.');
+        toast({
+          title: 'Sign in failed',
+          description: 'User ID is missing. Please try again.',
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+
+      try {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('subscription_status, subscription_tier')
@@ -167,15 +198,24 @@ const SignInContent = () => {
             status: 'error',
             duration: 5000,
           });
-          setIsLoading(false);
           return;
         }
 
-        if (profile?.subscription_status === 'active' && profile?.subscription_tier) {
+        if (redirect) {
+          router.push(redirect);
+        } else if (profile?.subscription_status === 'active' && profile?.subscription_tier) {
           router.push(`/dashboard/${profile.subscription_tier}`);
         } else {
           router.push('/pricing');
         }
+      } catch (profileFetchError) {
+        console.error('Unexpected error fetching profile:', profileFetchError);
+        toast({
+          title: 'Error',
+          description: 'An unexpected error occurred fetching profile.',
+          status: 'error',
+          duration: 5000,
+        });
       }
     } catch (error) {
       console.error('Unexpected email/password signin error:', error);

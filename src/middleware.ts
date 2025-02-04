@@ -1,7 +1,7 @@
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server'; // Corrected import
 
-export async function middleware(req) {
+export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
@@ -10,10 +10,14 @@ export async function middleware(req) {
 
     if (sessionError) {
       console.error('Session error:', sessionError.message);
-      return NextResponse.redirect(new URL('/auth/signin', req.url));
+      // Consider redirecting to /auth/signin only if the user is trying to access a protected route
+      if (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/billing')) {
+        return NextResponse.redirect(new URL('/auth/signin', req.url));
+      }
+      return res; // Otherwise, just continue
     }
 
-    if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
+    if (!session && (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/billing'))) {
       return NextResponse.redirect(new URL('/auth/signin', req.url));
     }
 
@@ -33,7 +37,7 @@ export async function middleware(req) {
 
       if (profileError) {
         console.error('Profile fetch error:', profileError.message);
-        return res;
+        return res; // Continue even if profile fetch fails (handle gracefully in components)
       }
 
       if (profile?.subscription_status === 'active') {
@@ -55,7 +59,7 @@ export async function middleware(req) {
     return res;
   } catch (error) {
     console.error('Middleware error:', error.message);
-    return res;
+    return res; // Continue even if a general error occurs
   }
 }
 
