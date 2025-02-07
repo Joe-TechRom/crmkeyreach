@@ -39,32 +39,39 @@ export async function POST(req: Request) {
       }
 
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const subscriptionId = session.subscription as string;
-        const userId = session.metadata?.user_id;
+  const session = event.data.object as Stripe.Checkout.Session;
+  const subscriptionId = session.subscription as string;
+  const userId = session.metadata?.user_id;
+  const additionalUsers = parseInt(session.metadata?.additionalUsers || '0');
 
-        // Update both profiles and subscriptions tables
-        await Promise.all([
-          supabaseAdmin
-            .from('profiles')
-            .update({
-              stripe_customer_id: session.customer as string,
-              stripe_subscription_id: subscriptionId,
-              subscription_status: 'active',
-              subscription_tier: session.metadata?.plan_type,
-              billing_cycle: session.metadata?.billing_cycle,
-              subscription_period_end: new Date(session.expires_at! * 1000)
-            })
-            .eq('user_id', userId),
+  // Retrieve full subscription details
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ['items.data.price']
+  });
 
-          manageSubscriptionStatusChange(
-            subscriptionId,
-            session.customer as string,
-            true
-          )
-        ]);
-        break;
-      }
+  // Update both profiles and subscriptions tables
+  await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .update({
+        stripe_customer_id: session.customer as string,
+        stripe_subscription_id: subscriptionId,
+        subscription_status: 'active',
+        subscription_tier: session.metadata?.plan_type,
+        billing_cycle: session.metadata?.billing_cycle,
+        additional_users: additionalUsers,
+        subscription_period_end: new Date(subscription.current_period_end * 1000)
+      })
+      .eq('user_id', userId),
+
+    manageSubscriptionStatusChange(
+      subscriptionId,
+      session.customer as string,
+      true
+    )
+  ]);
+  break;
+}
 
       case 'invoice.created':
       case 'invoice.finalized':

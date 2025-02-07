@@ -85,10 +85,10 @@ const SuccessPage = () => {
         if (!session) throw new Error('No authenticated session found');
 
         const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single();
+  .from('profiles')
+  .select('name, email, subscription_tier, billing_cycle')
+  .eq('user_id', session.user.id)
+  .single();
 
         if (profileError) throw profileError;
 
@@ -249,57 +249,73 @@ const SuccessPage = () => {
                 </Heading>
               </motion.div>
 
-              {customerData && (
-                <motion.div variants={itemVariants}>
-                  <Stack spacing={6} width="100%">
-                    <Text fontSize="xl" textAlign="center">
-                      Welcome aboard, <b>{customerData.username}</b>! 
-                    </Text>
-                    
-                    <Box
-                      bg={bgGray}
-                      p={6}
-                      rounded="xl"
-                    >
-                      <Stack spacing={4}>
-                        <Text>
-                          <b>Email:</b> {customerData.email}
-                        </Text>
-                        {subscriptions.length > 0 && (
-                          <Box>
-                            <Text fontWeight="bold" mb={2}>Your Active Subscriptions:</Text>
-                            {subscriptions.map((sub) => (
-                              <Text key={sub.id} py={1}>
-                                Plan ID: {sub.id} • Status: <Text as="span" color="green.500" fontWeight="bold">{sub.status}</Text>
-                              </Text>
-                            ))}
-                          </Box>
-                        )}
-                      </Stack>
-                    </Box>
-                  </Stack>
-                </motion.div>
-              )}
+{customerData && (
+  <motion.div variants={itemVariants}>
+    <Stack spacing={6} width="100%">
+      <VStack spacing={2}>
+        <Text fontSize="xl" textAlign="center">
+          Welcome aboard, <b>{customerData.name || 'Valued Customer'}</b>!
+        </Text>
+        <Text fontSize="lg" color="gray.600">
+          Your {customerData.subscription_tier} plan is ready to power your success
+        </Text>
+      </VStack>
+      
+      <Box bg={bgGray} p={6} rounded="xl">
+  <Stack spacing={4}>
+    <Text>
+      <b>Member Name:</b> {customerData.name}
+    </Text>
+    <Text>
+      <b>Email:</b> {customerData.email}
+    </Text>
+    <Text>
+      <b>Plan Type:</b> {customerData.subscription_tier}
+    </Text>
+    <Text>
+      <b>Billing Cycle:</b> {customerData.billing_cycle}
+    </Text>
+    <Text>
+      <b>Additional Team Members:</b> {customerData.additional_users || 0}
+    </Text>
+    {subscriptions.length > 0 && (
+      <Box>
+        <Text fontWeight="bold" mb={2}>Subscription Details:</Text>
+        {subscriptions.map((sub) => (
+          <Text key={sub.id} py={1}>
+            Status: <Text as="span" color="green.500" fontWeight="bold">{sub.status}</Text>
+          </Text>
+        ))}
+      </Box>
+    )}
+  </Stack>
+</Box>
 
-              <motion.div variants={itemVariants}>
-                <Button
-                  size="lg"
-                  px={10}
-                  h={14}
-                  fontSize="lg"
-                  bgGradient={colors.orange.gradient}
-                  color="white"
-                  rounded="2xl"
-                  onClick={() => router.push('/signin')}
-                  _hover={{
-                    transform: 'translateY(-2px)',
-                    shadow: '2xl'
-                  }}
-                  transition="all 0.2s"
-                >
-                  Go to Dashboard
-                </Button>
-              </motion.div>
+    </Stack>
+  </motion.div>
+)}
+
+<motion.div variants={itemVariants}>
+  <Button
+    size="lg"
+    px={10}
+    h={14}
+    fontSize="lg"
+    bgGradient={colors.orange.gradient}
+    color="white"
+    rounded="2xl"
+    onClick={() => router.push('/signin')}
+    _hover={{
+      transform: 'translateY(-2px)',
+      shadow: '2xl'
+    }}
+    transition="all 0.2s"
+  >
+    Access Your Dashboard
+  </Button>
+</motion.div>
+
+
             </VStack>
           </Box>
         </motion.div>
