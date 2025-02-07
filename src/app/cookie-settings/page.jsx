@@ -18,9 +18,19 @@ import {
   AccordionButton,
   AccordionPanel,
   AccordionIcon,
+  Link,
+  Flex,
+  Spacer,
+  Tooltip,
 } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
-import { FaCookie, FaShieldAlt, FaChartBar, FaBullhorn } from 'react-icons/fa'
+import {
+  FaCookie,
+  FaShieldAlt,
+  FaChartBar,
+  FaBullhorn,
+  FaQuestionCircle,
+} from 'react-icons/fa'
 
 const CookieSettings = () => {
   const [cookiePreferences, setCookiePreferences] = useState({
@@ -29,10 +39,11 @@ const CookieSettings = () => {
     analytics: false,
     marketing: false,
   })
-
   const toast = useToast()
   const bgColor = useColorModeValue('gray.50', 'gray.900')
   const cardBg = useColorModeValue('white', 'gray.800')
+  const textColor = useColorModeValue('gray.600', 'gray.400')
+  const headingColor = useColorModeValue('gray.800', 'white')
 
   useEffect(() => {
     const savedPreferences = localStorage.getItem('cookiePreferences')
@@ -42,9 +53,9 @@ const CookieSettings = () => {
   }, [])
 
   const handleToggle = (type) => {
-    setCookiePreferences(prev => ({
+    setCookiePreferences((prev) => ({
       ...prev,
-      [type]: !prev[type]
+      [type]: !prev[type],
     }))
   }
 
@@ -59,118 +70,203 @@ const CookieSettings = () => {
     })
   }
 
-  const switchTrackColor = "blue.700"
+  const switchTrackColor = 'blue.700'
   const gradientButton = `linear(to-r, blue.600, blue.800)`
 
+  const CookieDescription = ({ children }) => (
+    <Text fontSize="sm" color={textColor}>
+      {children}
+    </Text>
+  )
+
   return (
-    <Box bg={bgColor} minH="100vh" pt={32} pb={20}>
-      <Container maxW="4xl">
-        <VStack spacing={8} align="stretch">
+    <Box bg={bgColor} minH="100vh" pt={16} pb={20}>
+      <Container maxW="5xl">
+        <VStack spacing={10} align="stretch">
+          {/* Header */}
           <Box textAlign="center">
             <Icon as={FaCookie} w={12} h={12} color="blue.700" mb={4} />
-            <Heading size="2xl" mb={4}>Cookie Settings</Heading>
-            <Text fontSize="lg" color="gray.500">
-              Manage your cookie preferences and control how we use data to enhance your experience.
+            <Heading size="3xl" fontWeight="extrabold" color={headingColor} mb={2}>
+              Cookie Settings
+            </Heading>
+            <Text fontSize="md" color={textColor} maxW="xl" mx="auto">
+              Manage your cookie preferences to control how we use data to personalize content,
+              tailor ads, and enhance your experience.
             </Text>
           </Box>
 
-          <Box bg={cardBg} p={8} rounded="xl" shadow="lg">
+          {/* Cookie Preference Accordion */}
+          <Box bg={cardBg} p={8} rounded="2xl" shadow="xl">
             <Accordion allowMultiple defaultIndex={[0]}>
-              <AccordionItem border="none">
-                <AccordionButton px={4} py={6}>
-                  <HStack flex="1">
-                    <Icon as={FaShieldAlt} color="green.500" />
-                    <Box flex="1">
-                      <Heading size="sm">Necessary Cookies</Heading>
-                      <Text fontSize="sm" color="gray.500">Required for the website to function</Text>
-                    </Box>
-                    <Switch 
-                      isChecked={cookiePreferences.necessary} 
-                      isDisabled 
-                      size="lg"
-                      colorScheme="blue"
-                    />
-                  </HStack>
-                  <AccordionIcon />
-                </AccordionButton>
-                <AccordionPanel pb={4}>
-                  These cookies are essential for the website to function properly. They enable basic functions like page navigation and access to secure areas. The website cannot function properly without these cookies.
-                </AccordionPanel>
+              <AccordionItem border="none" py={2}>
+                {({ isExpanded }) => (
+                  <>
+                    <AccordionButton
+                      px={4}
+                      py={5
+                      }
+                      _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                      rounded="md"
+                    >
+                      <Flex align="center" width="full">
+                        <Icon as={FaShieldAlt} color="green.500" mr={4} />
+                        <Box flex="1" textAlign="left">
+                          <Heading size="sm" fontWeight="semibold" color={headingColor}>
+                            Necessary Cookies
+                          </Heading>
+                          <Text fontSize="xs" color={textColor}>
+                            Required for the website to function
+                          </Text>
+                        </Box>
+                        <Spacer />
+                        <Switch
+                          isChecked={cookiePreferences.necessary}
+                          isDisabled
+                          size="lg"
+                          colorScheme="blue"
+                        />
+                        <AccordionIcon ml={4} />
+                      </Flex>
+                    </AccordionButton>
+                    <AccordionPanel pb={4} px={4}>
+                      <CookieDescription>
+                        These cookies are essential for the website to function properly. They enable
+                        basic functions like page navigation and access to secure areas. The website
+                        cannot function properly without these cookies.
+                      </CookieDescription>
+                    </AccordionPanel>
+                  </>
+                )}
               </AccordionItem>
 
               <Divider />
 
-              <AccordionItem border="none">
-                <AccordionButton px={4} py={6}>
-                  <HStack flex="1">
-                    <Icon as={FaCookie} color="blue.700" />
-                    <Box flex="1">
-                      <Heading size="sm">Functional Cookies</Heading>
-                      <Text fontSize="sm" color="gray.500">Enhanced functionality and preferences</Text>
-                    </Box>
-                    <Switch 
-                      isChecked={cookiePreferences.functional}
-                      onChange={() => handleToggle('functional')}
-                      size="lg"
-                      colorScheme="blue"
-                    />
-                  </HStack>
-                  <AccordionIcon />
-                </AccordionButton>
-                <AccordionPanel pb={4}>
-                  These cookies enable enhanced functionality and personalization. They may be set by us or third-party providers whose services we've added to our pages.
-                </AccordionPanel>
+              <AccordionItem border="none" py={2}>
+                {({ isExpanded }) => (
+                  <>
+                    <AccordionButton
+                      px={4}
+                      py={5}
+                      _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                      rounded="md"
+                    >
+                      <Flex align="center" width="full">
+                        <Icon as={FaCookie} color="blue.700" mr={4} />
+                        <Box flex="1" textAlign="left">
+                          <Heading size="sm" fontWeight="semibold" color={headingColor}>
+                            Functional Cookies
+                          </Heading>
+                          <Text fontSize="xs" color={textColor}>
+                            Enhanced functionality and personalization
+                          </Text>
+                        </Box>
+                        <Spacer />
+                        <Switch
+                          isChecked={cookiePreferences.functional}
+                          onChange={() => handleToggle('functional')}
+                          size="lg"
+                          colorScheme="blue"
+                        />
+                        <AccordionIcon ml={4} />
+                      </Flex>
+                    </AccordionButton>
+                    <AccordionPanel pb={4} px={4}>
+                      <CookieDescription>
+                        These cookies enable enhanced functionality and personalization. They may be set
+                        by us or third-party providers whose services we've added to our pages.
+                      </CookieDescription>
+                    </AccordionPanel>
+                  </>
+                )}
               </AccordionItem>
 
               <Divider />
 
-              <AccordionItem border="none">
-                <AccordionButton px={4} py={6}>
-                  <HStack flex="1">
-                    <Icon as={FaChartBar} color="purple.500" />
-                    <Box flex="1">
-                      <Heading size="sm">Analytics Cookies</Heading>
-                      <Text fontSize="sm" color="gray.500">Help us understand how you use our site</Text>
-                    </Box>
-                    <Switch 
-                      isChecked={cookiePreferences.analytics}
-                      onChange={() => handleToggle('analytics')}
-                      size="lg"
-                    />
-                  </HStack>
-                  <AccordionIcon />
-                </AccordionButton>
-                <AccordionPanel pb={4}>
-                  These cookies help us understand how visitors interact with our website by collecting and reporting information anonymously. This helps us improve our website and services.
-                </AccordionPanel>
+              <AccordionItem border="none" py={2}>
+                {({ isExpanded }) => (
+                  <>
+                    <AccordionButton
+                      px={4}
+                      py={5}
+                      _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                      rounded="md"
+                    >
+                      <Flex align="center" width="full">
+                        <Icon as={FaChartBar} color="purple.500" mr={4} />
+                        <Box flex="1" textAlign="left">
+                          <Heading size="sm" fontWeight="semibold" color={headingColor}>
+                            Analytics Cookies
+                          </Heading>
+                          <Text fontSize="xs" color={textColor}>
+                            Help us understand how you use our site
+                          </Text>
+                        </Box>
+                        <Spacer />
+                        <Switch
+                          isChecked={cookiePreferences.analytics}
+                          onChange={() => handleToggle('analytics')}
+                          size="lg"
+                          colorScheme="blue"
+                        />
+                        <AccordionIcon ml={4} />
+                      </Flex>
+                    </AccordionButton>
+                    <AccordionPanel pb={4} px={4}>
+                      <CookieDescription>
+                        These cookies help us understand how visitors interact with our website by
+                        collecting and reporting information anonymously. This helps us improve our
+                        website and services.
+                      </CookieDescription>
+                    </AccordionPanel>
+                  </>
+                )}
               </AccordionItem>
 
               <Divider />
 
-              <AccordionItem border="none">
-                <AccordionButton px={4} py={6}>
-                  <HStack flex="1">
-                    <Icon as={FaBullhorn} color="orange.500" />
-                    <Box flex="1">
-                      <Heading size="sm">Marketing Cookies</Heading>
-                      <Text fontSize="sm" color="gray.500">Used for personalized advertising</Text>
-                    </Box>
-                    <Switch 
-                      isChecked={cookiePreferences.marketing}
-                      onChange={() => handleToggle('marketing')}
-                      size="lg"
-                    />
-                  </HStack>
-                  <AccordionIcon />
-                </AccordionButton>
-                <AccordionPanel pb={4}>
-                  These cookies are used to track visitors across websites. The intention is to display ads that are relevant and engaging for the individual user.
-                </AccordionPanel>
+              <AccordionItem border="none" py={2}>
+                {({ isExpanded }) => (
+                  <>
+                    <AccordionButton
+                      px={4}
+                      py={5}
+                      _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                      rounded="md"
+                    >
+                      <Flex align="center" width="full">
+                        <Icon as={FaBullhorn} color="orange.500" mr={4} />
+                        <Box flex="1" textAlign="left">
+                          <Heading size="sm" fontWeight="semibold" color={headingColor}>
+                            Marketing Cookies
+                          </Heading>
+                          <Text fontSize="xs" color={textColor}>
+                            Used for personalized advertising
+                          </Text>
+                        </Box>
+                        <Spacer />
+                        <Switch
+                          isChecked={cookiePreferences.marketing}
+                          onChange={() => handleToggle('marketing')}
+                          size="lg"
+                          colorScheme="blue"
+                        />
+                        <AccordionIcon ml={4} />
+                      </Flex>
+                    </AccordionButton>
+                    <AccordionPanel pb={4} px={4}>
+                      <CookieDescription>
+                        These cookies are used to track visitors across websites. The intention is to
+                        display ads that are relevant and engaging for the individual user.
+                      </CookieDescription>
+                    </AccordionPanel>
+                  </>
+                )}
               </AccordionItem>
             </Accordion>
           </Box>
 
-          <Box textAlign="center" py={8}>
+          {/* Save Preferences Button */}
+          <Box textAlign="center">
             <Button
               bgGradient={gradientButton}
               _hover={{
@@ -179,20 +275,37 @@ const CookieSettings = () => {
               color="white"
               size="lg"
               px={12}
+              py={6}
+              fontWeight="bold"
+              rounded="full"
+              boxShadow="md"
               onClick={savePreferences}
             >
               Save Preferences
             </Button>
           </Box>
 
-          <Box bg={cardBg} p={8} rounded="xl" shadow="lg">
-            <Heading size="md" mb={4}>About Our Cookie Policy</Heading>
-            <Text color="gray.500">
-              We use cookies and similar technologies to help personalize content, tailor and measure ads, and provide a better experience. 
-              By clicking 'Save Preferences' you accept the use of these cookies for the categories you've enabled. 
-              You can update these preferences at any time by returning to this page.
-              For more information about how we use cookies, please see our Cookie Policy.
-            </Text>
+          {/* Cookie Policy Information */}
+          <Box bg={cardBg} p={8} rounded="2xl" shadow="xl">
+            <HStack align="start" spacing={4} mb={4}>
+              <Heading size="md" color={headingColor}>
+                About Our Cookie Policy
+              </Heading>
+              <Tooltip label="Why is this important?">
+                <Icon as={FaQuestionCircle} color="gray.400" />
+              </Tooltip>
+            </HStack>
+            <CookieDescription>
+              We use cookies and similar technologies to help personalize content, tailor and measure
+              ads, and provide a better experience. By clicking 'Save Preferences' you accept the use
+              of these cookies for the categories you've enabled. You can update these preferences at
+              any time by returning to this page. For more information about how we use cookies,
+              please see our{' '}
+              <Link color="blue.500" href="#" isExternal>
+                Cookie Policy
+              </Link>
+              .
+            </CookieDescription>
           </Box>
         </VStack>
       </Container>

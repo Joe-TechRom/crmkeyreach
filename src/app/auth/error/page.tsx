@@ -1,115 +1,155 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { 
-  Box, 
-  Heading, 
-  Text, 
-  Button, 
-  VStack, 
-  useToast, 
+import {
+  Box,
+  Container,
+  Heading,
+  Text,
+  Button,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
   useColorModeValue,
-  Icon,
-  Container
+  Spinner,
 } from '@chakra-ui/react';
-import { useRouter } from 'next/navigation';
-import { FiAlertTriangle } from 'react-icons/fi';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useSession } from '@supabase/auth-helpers-react';
 
-export default function AuthError() {
+const AuthErrorPage = () => {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const toast = useToast();
   const error = searchParams.get('error');
-  const errorDescription = searchParams.get('error_description');
+  const [isResending, setIsResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const supabase = createClientComponentClient();
+  const session = useSession();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Color mode values
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const textColor = useColorModeValue('gray.800', 'whiteAlpha.900');
-  const boxShadow = useColorModeValue('lg', 'dark-lg');
-  const errorIconColor = useColorModeValue('red.500', 'red.300');
+  useEffect(() => {
+    const fetchUserEmail = async () => {
+      if (session?.user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles') // Assuming you have a profiles table linked to auth.users
+            .select('email')
+            .eq('user_id', session.user.id)
+            .single();
 
-  const handleRetry = () => {
-    toast({
-      title: 'Redirecting to signup',
-      description: 'Taking you back to the signup page',
-      status: 'info',
-      duration: 2000,
-    });
-    router.push('/auth/signup');
+          if (error) {
+            console.error('Error fetching user email:', error);
+            return;
+          }
+
+          setUserEmail(data?.email || null);
+        } catch (err) {
+          console.error('Error fetching user email:', err);
+        }
+      }
+    };
+
+    fetchUserEmail();
+  }, [session, supabase]);
+
+  const handleResendVerificationEmail = async () => {
+    setIsResending(true);
+    setResendSuccess(false);
+
+    try {
+      if (!userEmail) {
+        throw new Error('Email address not found. Please sign up again.');
+      }
+
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'email',
+        email: userEmail,
+      });
+
+      if (resendError) {
+        throw new Error(resendError.message);
+      }
+
+      setResendSuccess(true);
+    } catch (err: any) {
+      console.error('Error resending verification email:', err);
+      alert(err.message || 'Failed to resend verification email.'); // Display error in an alert
+    } finally {
+      setIsResending(false);
+    }
   };
 
+  const isExpiredLink = error === 'invalid flow state, flow state has expired';
+
   return (
-    <Container maxW="container.md" py={20}>
-      <Box 
-        bg={bgColor}
+    <Box
+      bg={useColorModeValue('gray.50', 'gray.900')}
+      minH="100vh"
+      py={10}
+      display="flex"
+      justifyContent="center"
+      alignItems="center"
+    >
+      <Container
+        maxW="container.md"
+        bg={useColorModeValue('white', 'gray.800')}
+        boxShadow="xl"
+        rounded="md"
         p={8}
-        borderRadius="xl"
-        boxShadow={boxShadow}
-        position="relative"
-        overflow="hidden"
+        textAlign="center"
       >
-        <VStack spacing={8} align="center">
-          <Icon 
-            as={FiAlertTriangle} 
-            w={12} 
-            h={12} 
-            color={errorIconColor}
-          />
-          <Heading 
-            size="xl" 
-            color={textColor}
-            textAlign="center"
-          >
-            Authentication Error
-          </Heading>
-          <Text 
-            fontSize="lg" 
-            textAlign="center" 
-            color={textColor}
-            maxW="md"
-          >
-            {errorDescription || 'An error occurred during authentication'}
-          </Text>
-          <Button 
-            colorScheme="blue" 
-            size="lg" 
-            onClick={handleRetry}
-            _hover={{ 
-              transform: 'translateY(-2px)',
-              boxShadow: 'xl'
-            }}
-            transition="all 0.2s"
-            rounded="full"
-            px={8}
-          >
-            Try Again
-          </Button>
-        </VStack>
-        
-        {/* Decorative background element */}
-        <Box
-          position="absolute"
-          top="-20%"
-          right="-20%"
-          width="200px"
-          height="200px"
-          bg="blue.500"
-          opacity="0.1"
-          borderRadius="full"
-          zIndex="0"
-        />
-        <Box
-          position="absolute"
-          bottom="-10%"
-          left="-10%"
-          width="150px"
-          height="150px"
-          bg="red.500"
-          opacity="0.1"
-          borderRadius="full"
-          zIndex="0"
-        />
-      </Box>
-    </Container>
+        <Heading as="h1" size="xl" mb={6}>
+          Authentication Error
+        </Heading>
+
+        {error ? (
+          <Alert status="error" mb={4}>
+            <AlertIcon />
+            <AlertTitle>Authentication Failed</AlertTitle>
+            <AlertDescription>
+              {isExpiredLink
+                ? 'The verification link has expired. Please request a new one.'
+                : `Error: ${error}`}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert status="error" mb={4}>
+            <AlertIcon />
+            <AlertTitle>Unexpected Error</AlertTitle>
+            <AlertDescription>
+              An unexpected error occurred during authentication.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isExpiredLink && (
+          <>
+            {resendSuccess ? (
+              <Alert status="success" mb={4}>
+                <AlertIcon />
+                Verification email resent successfully! Please check your inbox.
+              </Alert>
+            ) : (
+              <Button
+                colorScheme="teal"
+                onClick={handleResendVerificationEmail}
+                isLoading={isResending}
+                disabled={isResending}
+              >
+                {isResending ? (
+                  <>
+                    Resending <Spinner size="sm" ml={2} />
+                  </>
+                ) : (
+                  'Resend Verification Email'
+                )}
+              </Button>
+            )}
+          </>
+        )}
+      </Container>
+    </Box>
   );
-}
+};
+
+export default AuthErrorPage;

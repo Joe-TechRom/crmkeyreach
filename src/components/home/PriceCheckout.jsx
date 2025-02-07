@@ -1,5 +1,4 @@
-'use client';
-
+// src/components/home/PriceCheckout.jsx
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -19,11 +18,11 @@ import {
   Badge,
 } from '@chakra-ui/react';
 import { CheckIcon } from '@chakra-ui/icons';
-import { subscriptionPlans } from '@/config/plans'; // Corrected import statement
+import { customTheme } from '@/styles/theme';
+import { subscriptionPlans } from '@/config/plans';
 
 const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
   const router = useRouter();
-
   const colors = {
     orange: {
       light: '#FF9A5C',
@@ -31,16 +30,17 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
       gradient: 'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)',
     },
   };
-
   const bgColor = useColorModeValue('white', 'neutral.800');
   const borderColor = useColorModeValue('gray.100', 'neutral.700');
   const yearlyPrice = (price * 12 * 0.9).toFixed(2);
   const displayPrice = isYearly ? yearlyPrice : price;
   const billingPeriod = isYearly ? 'per year' : 'per month';
-
   const handleSignup = () => {
     router.push('/signup/');
   };
+
+  // Check if features is defined before mapping
+  const featureList = features ? features : [];
 
   return (
     <motion.div
@@ -122,7 +122,7 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
             )}
           </Stack>
           <List spacing={3} textAlign="left">
-            {features.map((feature, index) => (
+            {featureList.map((feature, index) => (
               <ListItem key={index}>
                 <ListIcon
                   as={CheckIcon}
@@ -148,7 +148,7 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
             }}
             onClick={handleSignup}
           >
-            Get Started
+            Sign Up Now
           </Button>
         </Stack>
       </Stack>
@@ -158,31 +158,25 @@ const PriceCard = ({ title, price, features, isPopular, isYearly, planId }) => {
 
 export default function Pricing() {
   const [isYearly, setIsYearly] = useState(false);
-
-  // Check if subscriptionPlans is defined before accessing its properties
-  const singleUserFeatures = subscriptionPlans?.single_user?.features || [];
-  const teamFeatures = subscriptionPlans?.team?.features || [];
-  const corporateFeatures = subscriptionPlans?.corporate?.features || [];
-
   const plans = [
     {
       title: 'Single User',
       price: '49.99',
-      planId: 'single_user', // Corrected planId
-      features: singleUserFeatures,
+      planId: 'Basic',
+      features: subscriptionPlans.single_user?.features, // Use optional chaining
     },
     {
       title: 'Team',
       price: '99.99',
-      planId: 'team', // Corrected planId
-      features: teamFeatures,
+      planId: 'Team',
+      features: [...(subscriptionPlans.team?.features || [])], // Use optional chaining and default to empty array
       isPopular: true,
     },
     {
       title: 'Corporate',
       price: '195.99',
-      planId: 'corporate', // Corrected planId
-      features: corporateFeatures,
+      planId: 'Corporate',
+      features: [...(subscriptionPlans.corporate?.features || [])], // Use optional chaining and default to empty array
     },
   ];
 
@@ -194,7 +188,7 @@ export default function Pricing() {
             fontSize={{ base: '3xl', md: '4xl', lg: '5xl' }}
             color={useColorModeValue('neutral.800', 'white')}
           >
-            Simple, Transparent Pricing
+            Flexible Plans, and Powerful Features
           </Heading>
           <Text
             fontSize={{ base: 'lg', lg: 'xl' }}
@@ -202,7 +196,7 @@ export default function Pricing() {
             maxW="3xl"
             mx="auto"
           >
-            Choose the plan that best fits your needs.
+            Affordable pricing tailored for real estate professionals at every stage of growth!.
           </Text>
           <Flex justify="center" align="center" gap={4}>
             <Text>Monthly</Text>

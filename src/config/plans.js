@@ -1,5 +1,5 @@
 export const subscriptionPlans = {
-  singleUser: {
+  single_user: {
     id: 'single_user',
     name: 'Single User',
     monthlyPrice: '49.99',

@@ -216,7 +216,7 @@ const Hero = () => {
                   >
                     <Button
                       as={Link}
-                      href="/auth/signup?plan=Basic"
+                      href="/signup/"
                       size="lg"
                       px={10}
                       h={16}

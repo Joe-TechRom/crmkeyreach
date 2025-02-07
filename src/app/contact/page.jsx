@@ -20,9 +20,16 @@ import {
   GridItem,
 } from '@chakra-ui/react'
 import { motion } from 'framer-motion'
+import { TypeAnimation } from 'react-type-animation'
 import { MdEmail, MdLocationOn, MdPhone } from 'react-icons/md'
 
 const gradientAnimation = keyframes`
+  0% { background-position: 0% 50% }
+  50% { background-position: 100% 50% }
+  100% { background-position: 0% 50% }
+`
+
+const gradientText = keyframes`
   0% { background-position: 0% 50% }
   50% { background-position: 100% 50% }
   100% { background-position: 0% 50% }
@@ -60,10 +67,20 @@ const floatingAnimation = {
 }
 
 export default function ContactPage() {
-  const bgGradient = useColorModeValue(
-    'linear-gradient(180deg, #F7F8FA 0%, #FFFFFF 100%)',
-    'linear-gradient(180deg, #1A202C 0%, #2D3748 100%)'
-  )
+  const colors = {
+    orange: {
+      light: '#FF9A5C',
+      main: '#FF6B2C',
+      gradient: 'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)',
+    },
+  }
+
+  const gradientBg = `
+    radial-gradient(circle at 0% 0%, ${colors.orange.light}15 0%, transparent 50%),
+    radial-gradient(circle at 100% 0%, ${colors.orange.main}10 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, ${colors.orange.light}15 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, ${colors.orange.main}10 0%, transparent 50%)
+  `
 
   const glassCard = {
     backdropFilter: 'blur(10px)',
@@ -73,19 +90,30 @@ export default function ContactPage() {
     shadow: 'xl'
   }
 
+  const gradientStyle = {
+    backgroundSize: '300% 300%',
+    animation: `${gradientText} 5s ease infinite`,
+  }
+
   return (
     <Box
       py={32}
-      background={bgGradient}
-      backgroundSize="200% 200%"
-      animation={`${gradientAnimation} 15s ease infinite`}
-      minH="100vh"
-      overflow="hidden"
       position="relative"
+      overflow="hidden"
+      bg={useColorModeValue('gray.50', 'gray.900')}
     >
-      <Container maxW="7xl" position="relative">
+      <Box
+        position="absolute"
+        inset="0"
+        zIndex="0"
+        style={{ background: gradientBg }}
+        filter="blur(120px)"
+        opacity="0.6"
+        transform="scale(1.2)"
+      />
+
+      <Container maxW="7xl" position="relative" zIndex="1">
         <Stack spacing={24}>
-          {/* Hero Section */}
           <Stack spacing={12} align="center" textAlign="center">
             <MotionBox
               variants={headerVariants}
@@ -94,106 +122,86 @@ export default function ContactPage() {
               textAlign="center"
               maxW="3xl"
             >
-              <Heading
-                fontSize={{ base: '5xl', md: '7xl' }}
-                fontWeight="800"
-                letterSpacing="-0.02em"
-                bgGradient="linear(to-r, #0066FF, #5B8DEF)"
-                bgClip="text"
-                mb={6}
-              >
-                Let's Build Something
-                <Box as="span" display="block">
-                  Amazing Together
-                </Box>
-              </Heading>
+              <TypeAnimation
+                sequence={[
+                  'Let\'s Build Something Amazing Together',
+                  1000,
+                  'Let\'s Create Something Amazing Together',
+                  1000,
+                  'Let\'s Design Something Amazing Together',
+                  1000,
+                ]}
+                wrapper="h1"
+                cursor={true}
+                repeat={Infinity}
+                style={{
+                  fontSize: '4rem',
+                  fontWeight: '800',
+                  lineHeight: '1.2',
+                  background: `linear-gradient(-45deg, ${colors.orange.main}, ${colors.orange.light}, #FF8F6B, #FFB088)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundSize: '300% 300%',
+                  animation: `${gradientText} 5s ease infinite`,
+                }}
+              />
               <Text
                 fontSize={{ base: 'xl', md: '2xl' }}
                 color={useColorModeValue('gray.600', 'gray.300')}
                 lineHeight="tall"
+                mt={6}
               >
                 Have questions about KeyReach? We'd love to hear from you.
                 Our team is ready to help you transform your business.
               </Text>
             </MotionBox>
 
-            {/* Image Grid */}
             <Grid
               templateColumns={{ base: '1fr', lg: 'repeat(2, 1fr)' }}
               gap={8}
               w="full"
             >
-              <MotionBox
-                variants={imageVariants}
-                initial="hidden"
-                animate="visible"
-                whileHover={{ y: -12, transition: { duration: 0.3 } }}
-              >
-                <Box
-                  rounded="2xl"
-                  overflow="hidden"
-                  {...glassCard}
-                  position="relative"
-                  height="400px"
+              {['/images/contact-hero.jpg', '/images/contact-hero-2.jpg'].map((src, index) => (
+                <MotionBox
+                  key={index}
+                  variants={imageVariants}
+                  initial="hidden"
+                  animate="visible"
+                  whileHover={{ y: -12, transition: { duration: 0.3 } }}
                 >
-                  <Image
-                    src="/images/contact-hero.jpg"
-                    alt="Contact KeyReach"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    style={{ objectFit: 'cover' }}
-                    priority
-                  />
                   <Box
-                    position="absolute"
-                    inset={0}
-                    bg="blackAlpha.400"
-                    transition="all 0.3s"
-                    _hover={{ bg: "blackAlpha.200" }}
-                  />
-                </Box>
-              </MotionBox>
-
-              <MotionBox
-                variants={imageVariants}
-                initial="hidden"
-                animate="visible"
-                whileHover={{ y: -12, transition: { duration: 0.3 } }}
-              >
-                <Box
-                  rounded="2xl"
-                  overflow="hidden"
-                  {...glassCard}
-                  position="relative"
-                  height="400px"
-                >
-                  <Image
-                    src="/images/contact-hero-2.jpg"
-                    alt="KeyReach Team"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    style={{ objectFit: 'cover' }}
-                    priority
-                  />
-                  <Box
-                    position="absolute"
-                    inset={0}
-                    bg="blackAlpha.400"
-                    transition="all 0.3s"
-                    _hover={{ bg: "blackAlpha.200" }}
-                  />
-                </Box>
-              </MotionBox>
+                    rounded="2xl"
+                    overflow="hidden"
+                    {...glassCard}
+                    position="relative"
+                    height="400px"
+                  >
+                    <Image
+                      src={src}
+                      alt={index === 0 ? "Contact KeyReach" : "KeyReach Team"}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      style={{ objectFit: 'cover' }}
+                      priority
+                    />
+                    <Box
+                      position="absolute"
+                      inset={0}
+                      bg="blackAlpha.400"
+                      transition="all 0.3s"
+                      _hover={{ bg: "blackAlpha.200" }}
+                    />
+                  </Box>
+                </MotionBox>
+              ))}
             </Grid>
           </Stack>
 
-          {/* Contact Grid */}
           <Grid
             templateColumns={{ base: '1fr', lg: 'repeat(2, 1fr)' }}
             gap={12}
             alignItems="start"
           >
-            {/* Form Section */}
             <GridItem>
               <MotionBox
                 initial={{ opacity: 0, x: -20 }}
@@ -204,32 +212,21 @@ export default function ContactPage() {
                 p={8}
               >
                 <Stack spacing={8}>
-                  <FormControl>
-                    <FormLabel fontSize="lg">Name</FormLabel>
-                    <Input
-                      size="lg"
-                      bg={useColorModeValue('white', 'whiteAlpha.100')}
-                      border="none"
-                      rounded="xl"
-                      _focus={{
-                        ring: 2,
-                        ringColor: 'blue.400'
-                      }}
-                    />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel fontSize="lg">Email</FormLabel>
-                    <Input
-                      size="lg"
-                      bg={useColorModeValue('white', 'whiteAlpha.100')}
-                      border="none"
-                      rounded="xl"
-                      _focus={{
-                        ring: 2,
-                        ringColor: 'blue.400'
-                      }}
-                    />
-                  </FormControl>
+                  {['Name', 'Email'].map((label) => (
+                    <FormControl key={label}>
+                      <FormLabel fontSize="lg">{label}</FormLabel>
+                      <Input
+                        size="lg"
+                        bg={useColorModeValue('white', 'whiteAlpha.100')}
+                        border="none"
+                        rounded="xl"
+                        _focus={{
+                          ring: 2,
+                          ringColor: colors.orange.main
+                        }}
+                      />
+                    </FormControl>
+                  ))}
                   <FormControl>
                     <FormLabel fontSize="lg">Message</FormLabel>
                     <Textarea
@@ -239,20 +236,20 @@ export default function ContactPage() {
                       rounded="xl"
                       _focus={{
                         ring: 2,
-                        ringColor: 'blue.400'
+                        ringColor: colors.orange.main
                       }}
                     />
                   </FormControl>
                   <Button
                     size="lg"
                     py={7}
-                    bgGradient="linear(to-r, #0066FF, #5B8DEF)"
+                    bgGradient={colors.orange.gradient}
                     color="white"
                     rounded="xl"
                     _hover={{
-                      bgGradient: "linear(to-r, #0052CC, #4B7BE0)",
                       transform: "translateY(-2px)",
-                      shadow: "xl"
+                      shadow: "xl",
+                      bgGradient: `linear-gradient(135deg, ${colors.orange.main} 0%, ${colors.orange.light} 100%)`
                     }}
                     _active={{
                       transform: "translateY(0)"
@@ -264,27 +261,23 @@ export default function ContactPage() {
               </MotionBox>
             </GridItem>
 
-            {/* Contact Info */}
             <GridItem>
               <Stack spacing={6}>
                 {[
                   {
                     icon: MdEmail,
                     title: 'Email',
-                    content: 'hello@keyreach.com',
-                    gradient: 'linear(to-r, #0066FF, #5B8DEF)'
+                    content: 'hello@keyreach.com'
                   },
                   {
                     icon: MdPhone,
                     title: 'Phone',
-                    content: '+1 (234) 567-8900',
-                    gradient: 'linear(to-r, #00B5D8, #4299E1)'
+                    content: '+1 (234) 567-8900'
                   },
                   {
                     icon: MdLocationOn,
                     title: 'Office',
-                    content: '123 Business Ave, Suite 100',
-                    gradient: 'linear(to-r, #00A3C4, #3182CE)'
+                    content: '123 Business Ave, Suite 100'
                   }
                 ].map((item, index) => (
                   <MotionBox
@@ -303,7 +296,7 @@ export default function ContactPage() {
                     <Stack direction="row" align="center" spacing={4}>
                       <Box
                         p={3}
-                        bgGradient={item.gradient}
+                        bgGradient={colors.orange.gradient}
                         rounded="lg"
                         color="white"
                       >

@@ -4,7 +4,9 @@ import { ChakraProvider, ColorModeScript, CSSReset } from '@chakra-ui/react';
 import { extendTheme, GlobalStyle } from '@chakra-ui/react';
 import { customTheme } from '@/styles/theme';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabaseClient } from '@/lib/supabaseClient'; // Import from centralized client
+import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs';
+import { SessionContextProvider } from '@supabase/auth-helpers-react';
+import { useState, useEffect } from 'react';
 
 // Enhanced theme configuration
 const theme = extendTheme({
@@ -55,26 +57,51 @@ const pageTransition = {
 };
 
 export function Providers({ children }) {
+  const [supabaseClient] = useState(() => createPagesBrowserClient());
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    async function getInitialSession() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      setSession(session);
+    }
+
+    getInitialSession();
+
+    const { data: { subscription: authListener } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => {
+      authListener?.unsubscribe();
+    };
+  }, [supabaseClient]);
+
   return (
     <>
       <ColorModeScript initialColorMode={theme.config.initialColorMode} />
       <ChakraProvider theme={theme} resetCSS>
         <CSSReset />
         <GlobalStyle />
-        <AnimatePresence mode="wait">
-          <motion.div
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={pageTransition}
-            style={{
-              width: '100%',
-              zIndex: 1,
-            }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
+        <SessionContextProvider
+          supabaseClient={supabaseClient}
+          initialSession={session}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={pageTransition}
+              style={{
+                width: '100%',
+                zIndex: 1,
+              }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </SessionContextProvider>
       </ChakraProvider>
     </>
   );

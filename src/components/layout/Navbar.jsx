@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -15,40 +15,26 @@ import {
   useDisclosure,
   Stack,
   Text,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  Avatar,
-  HStack,
 } from '@chakra-ui/react';
 import { HamburgerIcon, CloseIcon } from '@chakra-ui/icons';
-import { keyframes } from '@emotion/react';
-import { redirectDashboard } from '@/lib/utils/dashboard';
-import useUser from '@/lib/hooks/useUser';
-
-const shimmer = keyframes`
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-`;
 
 const mobileMenuVariants = {
-  hidden: { 
+  hidden: {
     opacity: 0,
     height: 0,
     transition: {
       duration: 0.2,
-      ease: 'easeInOut'
-    }
+      ease: 'easeInOut',
+    },
   },
   visible: {
     opacity: 1,
     height: 'auto',
     transition: {
       duration: 0.3,
-      ease: 'easeInOut'
-    }
-  }
+      ease: 'easeInOut',
+    },
+  },
 };
 
 const Navbar = () => {
@@ -56,8 +42,10 @@ const Navbar = () => {
   const router = useRouter();
   const { isOpen, onToggle } = useDisclosure();
   const [scrolled, setScrolled] = useState(false);
-  const { user, isLoading, signOut } = useUser();
-  const isAuthenticated = !!user;
+
+  const handleGetStarted = () => {
+    router.push('/signup');
+  };
 
   const navItems = [
     { name: 'Home', path: '/' },
@@ -86,32 +74,14 @@ const Navbar = () => {
     background: useColorModeValue(
       'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)',
       'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)'
-    )
+    ),
   };
-
-  const handleLogout = async () => {
-    await signOut();
-    router.push('/');
-  };
-
-  const handleGetStarted = () => {
-    if (isAuthenticated) {
-      redirectDashboard(user, router);
-    } else {
-      router.push('/auth/signup');
-    }
-  };
-
-  const handleDashboardRedirect = useCallback(async () => {
-    if (isAuthenticated) {
-      await redirectDashboard(user, router);
-    }
-  }, [isAuthenticated, router, user]);
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
+
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -137,7 +107,6 @@ const Navbar = () => {
   };
 
   const textColor = useColorModeValue('gray.600', 'gray.200');
-  const signInButtonHoverBg = useColorModeValue('orange.50', 'whiteAlpha.100');
 
   return (
     <motion.nav initial="hidden" animate="visible" variants={navVariants}>
@@ -159,7 +128,7 @@ const Navbar = () => {
             bottom: 0,
             backdropFilter: scrolled ? 'blur(10px)' : 'none',
             zIndex: -1,
-          }
+          },
         }}
       >
         <Container maxW="8xl" px={{ base: 4, md: 6, lg: 8 }}>
@@ -214,79 +183,20 @@ const Navbar = () => {
                   </motion.div>
                 ))}
               </Stack>
-
-              <Stack direction="row" spacing={4} ml={8}>
-                {isLoading ? (
-                  <Text>Loading...</Text>
-                ) : isAuthenticated ? (
-                  <Menu>
-                    <MenuButton
-                      as={Button}
-                      rounded={'full'}
-                      variant={'link'}
-                      cursor={'pointer'}
-                      minW={0}
-                    >
-                      <HStack>
-                        <Avatar
-                          size={'sm'}
-                          src={user?.firstName || user?.email ? null : user?.user_metadata?.avatar_url}
-                          name={user?.firstName || user?.email || user?.user_metadata?.full_name}
-                          alt="User Avatar"
-                        />
-                        <Text display={{ base: 'none', md: 'block' }} color={useColorModeValue('gray.700', 'gray.200')}>
-                          {user?.firstName || user?.email || user?.user_metadata?.full_name || 'User'}
-                        </Text>
-                      </HStack>
-                    </MenuButton>
-                    <MenuList>
-                      <MenuItem onClick={() => router.push('/profile')}>Profile</MenuItem>
-                      <MenuItem onClick={() => router.push('/settings')}>Settings</MenuItem>
-                      <MenuItem onClick={handleDashboardRedirect}>Dashboard</MenuItem>
-                      <MenuItem onClick={handleLogout}>Sign Out</MenuItem>
-                    </MenuList>
-                  </Menu>
-                ) : (
-                  <>
-                    <Box>
-                      <Link href="/auth/signin">
-                        <Button
-                          px={6}
-                          h={10}
-                          fontSize="md"
-                          rounded="xl"
-                          variant="outline"
-                          borderColor={colors.orange.main}
-                          color={colors.orange.main}
-                          _hover={{
-                            transform: 'translateY(-2px)',
-                            shadow: 'lg',
-                            bg: signInButtonHoverBg,
-                          }}
-                          transition="all 0.2s"
-                        >
-                          Sign In
-                        </Button>
-                      </Link>
-                    </Box>
-                    <Button
-                      onClick={handleGetStarted}
-                      px={6}
-                      h={10}
-                      fontSize="md"
-                      rounded="xl"
-                      bgGradient={colors.orange.gradient}
-                      color="white"
-                      _hover={buttonStyles}
-                      transition="all 0.2s"
-                    >
-                      <Text position="relative" zIndex={1}>
-                        Get Started
-                      </Text>
-                    </Button>
-                  </>
-                )}
-              </Stack>
+              <Button
+                px={6}
+                h={10}
+                fontSize="md"
+                rounded="xl"
+                bgGradient={colors.orange.gradient}
+                color="white"
+                _hover={buttonStyles}
+                transition="all 0.2s"
+                onClick={handleGetStarted}
+                ml={8}
+              >
+                Get Started
+              </Button>
             </Flex>
 
             <IconButton
@@ -328,35 +238,15 @@ const Navbar = () => {
                       </Link>
                     </Box>
                   ))}
-                  {isAuthenticated ? (
-                    <Stack spacing={2}>
-                      <Button onClick={handleDashboardRedirect} w="full" variant="outline" colorScheme="orange">
-                        Dashboard
-                      </Button>
-                      <Button onClick={handleLogout} w="full" variant="outline" colorScheme="orange">
-                        Logout
-                      </Button>
-                    </Stack>
-                  ) : (
-                    <Stack spacing={2}>
-                      <Box>
-                        <Link href="/auth/signin">
-                          <Button w="full" variant="outline" colorScheme="orange">
-                            Sign In
-                          </Button>
-                        </Link>
-                      </Box>
-                      <Button
-                        onClick={handleGetStarted}
-                        w="full"
-                        bgGradient={colors.orange.gradient}
-                        color="white"
-                        _hover={buttonStyles}
-                      >
-                        Get Started
-                      </Button>
-                    </Stack>
-                  )}
+                  <Button
+                    w="full"
+                    bgGradient={colors.orange.gradient}
+                    color="white"
+                    _hover={buttonStyles}
+                    onClick={handleGetStarted}
+                  >
+                    Get Started
+                  </Button>
                 </Stack>
               </motion.div>
             )}

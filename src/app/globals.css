@@ -3,20 +3,40 @@
 @tailwind utilities;
 
 :root {
+  /* Enhanced Color System */
   --primary-color: #2D5BFF;
+  --primary-dark: #1939B7;
   --secondary-color: #00D1FF;
+  --accent-color: #FF2D55;
+  --success-color: #00C853;
+  --warning-color: #FFB300;
+  --error-color: #FF3D00;
+  
+  /* Enhanced UI Elements */
   --card-radius: 24px;
   --button-radius: 16px;
   --shadow-color: rgba(45, 91, 255, 0.1);
+  --navbar-height: 80px;
+  
+  /* Light Theme Colors */
+  --bg-light: #ffffff;
+  --text-light: #1A1A1A;
+  --surface-light: #F8F9FA;
+  
+  /* Dark Theme Colors */
+  --bg-dark: #121212;
+  --text-dark: #FFFFFF;
+  --surface-dark: #1E1E1E;
 }
 
-/* Base Layout Control */
+/* Enhanced Base Layout Control */
 html {
   width: 100%;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  scroll-padding-top: var(--navbar-height);
 }
 
 body {
@@ -26,167 +46,126 @@ body {
   overflow-x: hidden;
   min-height: 100vh;
   position: relative;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Layout Utilities */
-.app-wrapper,
-.full-width {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  position: relative;
+/* Fixed Navigation Bar */
+.navbar-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--navbar-height);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 1000;
+  transition: all 0.3s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .navbar-fixed {
+  background: rgba(18, 18, 18, 0.8);
 }
 
 /* Enhanced Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: var(--surface-light);
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--primary-color);
-  border-radius: 4px;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  border-radius: 5px;
+  border: 2px solid var(--surface-light);
   transition: all 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #1939B7;
+  background: linear-gradient(135deg, var(--primary-dark), var(--secondary-color));
 }
 
-/* Modern Card Styles */
+/* Enhanced Card Styles */
 .card {
   @apply rounded-[var(--card-radius)] bg-white dark:bg-gray-800;
   box-shadow: 0 8px 32px var(--shadow-color);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 48px var(--shadow-color);
-}
-
-/* Glass Morphism */
-.glass {
-  @apply backdrop-blur-lg bg-white/70 dark:bg-gray-800/70;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Animation Classes */
+.card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 48px var(--shadow-color);
+}
+
+/* Enhanced Glass Morphism */
+.glass {
+  @apply backdrop-blur-xl bg-white/80 dark:bg-gray-800/80;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced Animation Classes */
 .fade-in {
-  animation: fadeIn 0.5s ease-in forwards;
+  animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .slide-up {
-  animation: slideUp 0.5s ease-out forwards;
+  animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .float {
-  animation: float 6s ease-in-out infinite;
+  animation: float 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-20px); }
-}
-
-/* Enhanced Shine Effect */
-@keyframes shine {
-  0% { transform: translateX(-100%); }
-  50%, 100% { transform: translateX(100%); }
-}
-
-.shine {
-  position: relative;
-  overflow: hidden;
-}
-
-.shine::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 200%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
-  animation: shine 3s infinite;
-}
-
-/* Gradient Styles */
-.text-gradient {
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.bg-gradient {
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-}
-
-/* Typography System */
-@layer base {
-  h1 {
-    @apply text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight;
-  }
-  h2 {
-    @apply text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight;
-  }
-  h3 {
-    @apply text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight;
-  }
-}
-
-/* Button System */
+/* Enhanced Button System */
 .btn {
-  @apply rounded-[var(--button-radius)] px-6 py-3 font-medium transition-all duration-300;
+  @apply rounded-[var(--button-radius)] px-6 py-3 font-medium;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary {
-  @apply bg-gradient text-white shadow-lg hover:shadow-xl 
-         hover:-translate-y-0.5 active:translate-y-0;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: white;
+  box-shadow: 0 4px 16px rgba(45, 91, 255, 0.3);
 }
 
-/* Container System */
-.container-custom {
-  @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 640px) {
-  :root {
-    --card-radius: 16px;
-    --button-radius: 12px;
-  }
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(45, 91, 255, 0.4);
 }
 
 /* Dark Mode Optimizations */
 @media (prefers-color-scheme: dark) {
+  body {
+    background-color: var(--bg-dark);
+    color: var(--text-dark);
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--surface-dark);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    border-color: var(--surface-dark);
+  }
+  
+  .card {
+    background: var(--surface-dark);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
   :root {
-    --shadow-color: rgba(45, 91, 255, 0.2);
+    --card-radius: 16px;
+    --button-radius: 12px;
+    --navbar-height: 64px;
   }
 }

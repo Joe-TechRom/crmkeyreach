@@ -63,9 +63,9 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html 
-      lang="en" 
-      suppressHydrationWarning 
+    <html
+      lang="en"
+      suppressHydrationWarning
       className={`${inter.variable} ${plusJakarta.variable}`}
     >
       <head>
@@ -74,7 +74,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
-          <Box 
+          <Box
             as="div"
             display="flex"
             flexDirection="column"
@@ -83,8 +83,23 @@ export default function RootLayout({ children }) {
             position="relative"
             overflow="hidden"
           >
-            <Navbar />
-            
+            <Box
+              position="fixed"
+              top="0"
+              left="0"
+              right="0"
+              zIndex="sticky"
+              backdropFilter="blur(12px)"
+              bg="whiteAlpha.800"
+              _dark={{
+                bg: "blackAlpha.800"
+              }}
+              boxShadow="sm"
+              transition="all 0.2s ease-in-out"
+            >
+              <Navbar />
+            </Box>
+
             <Box
               position="fixed"
               top="0"
@@ -99,8 +114,8 @@ export default function RootLayout({ children }) {
               opacity="0.5"
               sx={{ transition: 'background 0.3s ease' }}
             />
-            
-            <Box 
+
+            <Box
               as="main"
               flexGrow={1}
               width="100%"
@@ -111,8 +126,8 @@ export default function RootLayout({ children }) {
               {children}
             </Box>
             <Footer />
-            
-            <Box 
+
+            <Box
               position="fixed"
               bottom="4"
               right="4"

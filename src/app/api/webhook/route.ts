@@ -1,86 +1,130 @@
-import Stripe from 'stripe';
-import { headers } from 'next/headers';
+import { supabaseAdmin, manageSubscriptionStatusChange } from '@/lib/supabaseAdmin';
+import { stripe } from '@/utils/stripe';
 import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
 
-import { stripe } from '@/lib/stripe';
-import {
-  upsertProductRecord,
-  upsertPriceRecord,
-  createOrRetrieveCustomer,
-  manageSubscriptionStatusChange
-} from '@/lib/supabaseAdmin';
-
-const relevantEvents = new Set([
-  'product.created',
-  'product.updated',
-  'price.created',
-  'price.updated',
-  'checkout.session.completed',
-  'customer.subscription.created',
-  'customer.subscription.updated',
-  'customer.subscription.deleted',
-]);
-
-export async function POST(
-  req: Request
-) {
-  let event: Stripe.Event;
+export async function POST(req: Request) {
+  const body = await req.text();
+  const signature = req.headers.get('stripe-signature')!;
 
   try {
-    const body = await req.text();
-    const signature = headers().get('stripe-signature') as string;
-
-    event = stripe.webhooks.constructEvent(
+    const event = stripe.webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (error: any) {
-    console.log(`Error message: ${error.message}`);
-    return new NextResponse(`Webhook Error: ${error.message}`, { status: 400 });
-  }
 
-  if (relevantEvents.has(event.type)) {
-    try {
-      switch (event.type) {
-        case 'product.created':
-        case 'product.updated':
-          await upsertProductRecord(event.data.object as Stripe.Product);
-          break;
-        case 'price.created':
-        case 'price.updated':
-          await upsertPriceRecord(event.data.object as Stripe.Price);
-          break;
-        case 'customer.subscription.created':
-        case 'customer.subscription.updated':
-        case 'customer.subscription.deleted':
-          const subscription = event.data.object as Stripe.Subscription;
-          await manageSubscriptionStatusChange(
-            subscription.id,
-            subscription.customer as string,
-            event.type === 'customer.subscription.created'
-          );
-          break;
-        case 'checkout.session.completed':
-          const checkoutSession = event.data.object as Stripe.Checkout.Session;
-          if (checkoutSession.mode === 'subscription') {
-            const subscriptionId = checkoutSession.subscription;
-            await manageSubscriptionStatusChange(
-              subscriptionId as string,
-              checkoutSession.customer as string,
-              true
-            );
-          }
-          break;
-        default:
-          throw new Error('Unhandled relevant event!');
+    switch (event.type) {
+      case 'customer.created': {
+        const customer = event.data.object as Stripe.Customer;
+        await supabaseAdmin
+          .from('customers')
+          .upsert([{ 
+            id: customer.metadata.supabaseUUID,
+            stripe_customer_id: customer.id 
+          }]);
+        break;
       }
-    } catch (error: any) {
-      console.log(error);
-      return new NextResponse('Webhook error: "Webhook handler failed. View logs."', {
-        status: 400,
-      });
+
+      case 'customer.updated': {
+        const customer = event.data.object as Stripe.Customer;
+        await supabaseAdmin
+          .from('profiles')
+          .update({ 
+            stripe_customer_id: customer.id,
+            subscription_status: 'active' 
+          })
+          .eq('user_id', customer.metadata.supabaseUUID);
+        break;
+      }
+
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const subscriptionId = session.subscription as string;
+        const userId = session.metadata?.user_id;
+
+        // Update both profiles and subscriptions tables
+        await Promise.all([
+          supabaseAdmin
+            .from('profiles')
+            .update({
+              stripe_customer_id: session.customer as string,
+              stripe_subscription_id: subscriptionId,
+              subscription_status: 'active',
+              subscription_tier: session.metadata?.plan_type,
+              billing_cycle: session.metadata?.billing_cycle,
+              subscription_period_end: new Date(session.expires_at! * 1000)
+            })
+            .eq('user_id', userId),
+
+          manageSubscriptionStatusChange(
+            subscriptionId,
+            session.customer as string,
+            true
+          )
+        ]);
+        break;
+      }
+
+      case 'invoice.created':
+      case 'invoice.finalized':
+      case 'invoice.updated':
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (typeof invoice.subscription === 'string') {
+          await manageSubscriptionStatusChange(
+            invoice.subscription,
+            invoice.customer as string,
+            false
+          );
+        }
+        break;
+      }
+
+      case 'charge.succeeded': {
+        const charge = event.data.object as Stripe.Charge;
+        if (charge.customer) {
+          const customer = await stripe.customers.retrieve(charge.customer as string);
+          await supabaseAdmin
+            .from('profiles')
+            .update({ subscription_status: 'active' })
+            .eq('user_id', customer.metadata.supabaseUUID);
+        }
+        break;
+      }
+
+      case 'payment_intent.created':
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        if (paymentIntent.customer) {
+          const customer = await stripe.customers.retrieve(paymentIntent.customer as string);
+          await supabaseAdmin
+            .from('profiles')
+            .update({ subscription_status: 'active' })
+            .eq('user_id', customer.metadata.supabaseUUID);
+        }
+        break;
+      }
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await manageSubscriptionStatusChange(
+          subscription.id,
+          subscription.customer as string,
+          event.type === 'customer.subscription.created'
+        );
+        break;
+      }
     }
+
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return NextResponse.json(
+      { error: 'Webhook handler failed' },
+      { status: 400 }
+    );
   }
-  return NextResponse.json({ received: true }, { status: 200 });
 }
