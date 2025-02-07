@@ -126,40 +126,60 @@ const handleSignIn = async (e: React.FormEvent) => {
   }
 };
 
- const checkSubscriptionAndRedirect = async (userId: string) => {
-    try {
-      const { data: subscriptions, error } = await supabase
-        .from('subscriptions')
-        .select('price_id, subscription_tier')
-        .eq('user_id', userId)
-        .in('status', ['active', 'trialing'])
-        .limit(1)
-        .single();
+const checkSubscriptionAndRedirect = async (userId: string) => {
+  try {
+    console.log('Checking subscription status for user:', userId);
+    
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select(`
+        id,
+        status,
+        price_id,
+        metadata,
+        quantity
+      `)
+      .eq('user_id', userId)
+      .in('status', ['active', 'trialing'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-      // Default redirect if no subscription found
-      if (!subscriptions) {
-        router.push('/dashboard/default');
-        return;
-      }
+    console.log('Current subscription:', subscription);
 
-      // Route based on subscription tier
-      switch (subscriptions.subscription_tier) {
-        case 'single-user':
-          router.push('/dashboard/single-user');
-          break;
-        case 'team':
-          router.push('/dashboard/team');
-          break;
-        case 'corporate':
-          router.push('/dashboard/corporate');
-          break;
-        default:
-          router.push('/dashboard/default');
-      }
-    } catch (err) {
-      // Safely redirect to default dashboard on any error
+    if (subscription?.status === 'active' || subscription?.status === 'trialing') {
+      const priceIdMap = {
+        [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_MONTHLY]: 'single_user',
+        [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_YEARLY]: 'single_user',
+        [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_MONTHLY]: 'team',
+        [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_YEARLY]: 'team',
+        [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_MONTHLY]: 'corporate',
+        [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_YEARLY]: 'corporate'
+      };
+
+      const tier = priceIdMap[subscription.price_id];
+      console.log('Determined tier:', tier);
+
+      const dashboardRoutes = {
+        single_user: '/dashboard/single-user',
+        team: '/dashboard/team',
+        corporate: '/dashboard/corporate'
+      };
+
+      const targetRoute = dashboardRoutes[tier] || '/dashboard/default';
+      console.log('Redirecting to:', targetRoute);
+      
+      router.push(targetRoute);
+      router.refresh();
+    } else {
+      console.log('No active subscription found');
       router.push('/dashboard/default');
     }
+
+  } catch (err) {
+    console.log('Subscription check error:', err);
+    router.push('/dashboard/default');
+  }
 };
 
   return (
