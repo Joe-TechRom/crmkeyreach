@@ -40,16 +40,13 @@ export const upsertProductRecord = async (product: Stripe.Product) => {
       image: product.images?.[0] ?? null,
       metadata: product.metadata,
     };
-
     const { error } = await supabaseAdmin
       .from('products')
       .upsert([productData], { onConflict: ['id'] });
-
     if (error) {
       console.error(`Supabase error in upsertProductRecord:`, error);
       throw new Error(`Supabase error in upsertProductRecord: ${error.message}`);
     }
-
     console.log(`Product ${product.id} upserted successfully.`);
   } catch (error: any) {
     console.error('Error upserting product record:', error);
@@ -71,16 +68,13 @@ export const upsertPriceRecord = async (price: Stripe.Price) => {
       trial_period_days: price.recurring?.trial_period_days,
       metadata: price.metadata,
     };
-
     const { error } = await supabaseAdmin
       .from('prices')
       .upsert([priceData], { onConflict: ['id'] });
-
     if (error) {
       console.error(`Supabase error in upsertPriceRecord:`, error);
       throw new Error(`Supabase error in upsertPriceRecord: ${error.message}`);
     }
-
     console.log(`Price ${price.id} upserted successfully.`);
   } catch (error: any) {
     console.error('Error upserting price record:', error);
@@ -133,6 +127,8 @@ export const manageSubscriptionStatusChange = async (
     // Fetch subscription and related data from Stripe
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     const priceId = subscription.items.data[0].price.id;
+    const additionalUsers = subscription.metadata?.additionalUsers ? 
+      parseInt(subscription.metadata.additionalUsers) : 0;
 
     // Get price and product details from Stripe
     const price = await stripe.prices.retrieve(priceId);
@@ -141,6 +137,14 @@ export const manageSubscriptionStatusChange = async (
     // Create product and price records if they don't exist
     await upsertProductRecord(product);
     await upsertPriceRecord(price);
+
+    // After all operations are complete, log the update
+    console.log('Updated profile with additional users:', {
+      userId: subscription.metadata?.supabaseUUID || subscription.customer,
+      additionalUsers,
+      subscriptionId: subscription.id,
+      profileData: subscription.status
+    });
 
     const { data: customerData, error: noCustomerError } = await supabaseAdmin
       .from('customers')
@@ -152,6 +156,7 @@ export const manageSubscriptionStatusChange = async (
       console.error("Error fetching customer:", noCustomerError);
       throw noCustomerError;
     }
+
     if (!customerData) {
       throw new Error(`Customer not found with Stripe ID: ${customerId}`);
     }
@@ -190,8 +195,11 @@ export const manageSubscriptionStatusChange = async (
     if (subscription.status === 'active') {
       const { error: profileUpdateError } = await supabaseAdmin
         .from('profiles')
-        .update({ subscription_status: 'active' })
-        .eq('id', customerData.id);
+        .update({ 
+          subscription_status: 'active',
+          additional_users: additionalUsers
+         })
+        .eq('user_id', customerData.id);
 
       if (profileUpdateError) {
         console.error('Error updating profile:', profileUpdateError);
@@ -201,7 +209,6 @@ export const manageSubscriptionStatusChange = async (
     }
 
     console.log(`Subscription ${subscription.id} ${createAction ? 'created' : 'updated'} for user ${customerData.id}`);
-
   } catch (error: any) {
     console.error('Error managing subscription status change:', error);
     throw error;

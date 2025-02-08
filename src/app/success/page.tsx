@@ -84,9 +84,9 @@ const SuccessPage = () => {
         if (authError) throw authError;
         if (!session) throw new Error('No authenticated session found');
 
-        const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabase
   .from('profiles')
-  .select('name, email, subscription_tier, billing_cycle')
+  .select('name, email, subscription_tier, billing_cycle, additional_users')
   .eq('user_id', session.user.id)
   .single();
 

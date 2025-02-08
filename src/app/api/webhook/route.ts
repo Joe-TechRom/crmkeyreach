@@ -15,33 +15,37 @@ export async function POST(req: Request) {
     );
 
     switch (event.type) {
-      case 'customer.created': {
-        const customer = event.data.object as Stripe.Customer;
-        await supabaseAdmin
-          .from('customers')
-          .upsert([{ 
-            id: customer.metadata.supabaseUUID,
-            stripe_customer_id: customer.id 
-          }]);
-        break;
-      }
+  case 'customer.created': {
+    const customer = event.data.object as Stripe.Customer;
+    await supabaseAdmin
+      .from('customers')
+      .upsert([{ 
+        id: customer.metadata.supabaseUUID,
+        stripe_customer_id: customer.id 
+      }]);
+    break;
+  }
 
-      case 'customer.updated': {
-        const customer = event.data.object as Stripe.Customer;
-        await supabaseAdmin
-          .from('profiles')
-          .update({ 
-            stripe_customer_id: customer.id,
-            subscription_status: 'active' 
-          })
-          .eq('user_id', customer.metadata.supabaseUUID);
-        break;
-      }
+  case 'customer.updated': {
+    const customer = event.data.object as Stripe.Customer;
+    await supabaseAdmin
+      .from('profiles')
+      .update({ 
+        stripe_customer_id: customer.id,
+        subscription_status: 'active',
+        additional_users: customer.metadata.additionalUsers || 0
+      })
+      .eq('user_id', customer.metadata.supabaseUUID);
+    break;
+  }
 
-      case 'checkout.session.completed': {
+
+case 'checkout.session.completed': {
   const session = event.data.object as Stripe.Checkout.Session;
   const subscriptionId = session.subscription as string;
   const userId = session.metadata?.user_id;
+  
+  // Get the additional users count from metadata
   const additionalUsers = parseInt(session.metadata?.additionalUsers || '0');
 
   // Retrieve full subscription details
@@ -59,7 +63,7 @@ export async function POST(req: Request) {
         subscription_status: 'active',
         subscription_tier: session.metadata?.plan_type,
         billing_cycle: session.metadata?.billing_cycle,
-        additional_users: additionalUsers,
+        additional_users: additionalUsers, // Explicitly set additional_users
         subscription_period_end: new Date(subscription.current_period_end * 1000)
       })
       .eq('user_id', userId),
@@ -70,6 +74,14 @@ export async function POST(req: Request) {
       true
     )
   ]);
+
+  // Log successful update for tracking
+  console.log('Updated profile with additional users:', {
+    userId,
+    additionalUsers,
+    subscriptionId
+  });
+
   break;
 }
 

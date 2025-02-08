@@ -106,6 +106,7 @@ const FeatureCard = ({ icon: FeatureIcon, title, description }) => {
     borderWidth: '1px',
     borderColor: useColorModeValue('gray.200', 'whiteAlpha.100'),
   };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -206,6 +207,7 @@ const DefaultDashboardPage = () => {
       description: 'Comprehensive analytics and reporting for informed decisions.',
     },
   ];
+
   const searchParams = useSearchParams();
   const toast = useToast();
 
@@ -263,10 +265,11 @@ const DefaultDashboardPage = () => {
       />
       <Flex
         position="absolute"
-        top="4"
-        right="4"
-        zIndex="2"
+        top="20"
+        right="20" // Changed from "4" to "20" to move it left
+        zIndex=""
         alignItems="center"
+        gap="4" // Added gap between elements if needed
       >
         <Menu>
           <MenuButton
@@ -373,6 +376,8 @@ const DefaultDashboardPage = () => {
           </Stack>
         </Stack>
       </Container>
+      {/* Add spacing at the bottom of the page */}
+      <Box h="200px" />
     </Box>
   );
 };
