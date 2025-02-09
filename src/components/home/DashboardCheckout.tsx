@@ -21,7 +21,7 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { 
+    transition: {
       staggerChildren: 0.2,
       delayChildren: 0.3
     }
@@ -30,8 +30,8 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { 
-    opacity: 1, 
+  visible: {
+    opacity: 1,
     y: 0,
     transition: {
       type: "spring",
@@ -42,7 +42,8 @@ const itemVariants = {
 };
 
 const DashboardCheckout = ({ onSubscribe }) => {
-const [selectedPlan, setSelectedPlan] = useState('');
+  const [selectedPlan, setSelectedPlan] = useState('');
+
   const colors = {
     orange: {
       light: '#FF9A5C',
@@ -65,14 +66,14 @@ const [selectedPlan, setSelectedPlan] = useState('');
     onSubscribe(selectedPlan);
   };
 
- return (
+  return (
     <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
       <RadioGroup onChange={setSelectedPlan} value={selectedPlan}>
-        <Grid 
+        <Grid
           templateColumns={{ base: '1fr', md: '1fr 1fr', lg: '1fr 1fr 1fr' }}
           gap={8}
         >
@@ -80,7 +81,7 @@ const [selectedPlan, setSelectedPlan] = useState('');
             <motion.div
               key={plan.id}
               variants={itemVariants}
-              whileHover={{ 
+              whileHover={{
                 y: -10,
                 transition: { duration: 0.2 }
               }}
@@ -107,7 +108,7 @@ const [selectedPlan, setSelectedPlan] = useState('');
                     <Heading size="lg">{plan.name}</Heading>
                     <Radio value={plan.id} />
                   </HStack>
-                  
+
                   <Box>
                     <Text
                       fontSize="2xl"
@@ -121,7 +122,6 @@ const [selectedPlan, setSelectedPlan] = useState('');
                       or ${plan.yearlyPrice}/year
                     </Text>
                   </Box>
-
                   <Stack spacing={4}>
                     {plan.features.map((feature, index) => (
                       <HStack key={index} align="flex-start">
@@ -136,13 +136,17 @@ const [selectedPlan, setSelectedPlan] = useState('');
                       </HStack>
                     ))}
                   </Stack>
+                  {plan.userLimit && (
+                    <Text fontSize="sm" color="gray.500">
+                      Up to {plan.userLimit} users
+                    </Text>
+                  )}
                 </Stack>
               </Card>
             </motion.div>
           ))}
         </Grid>
       </RadioGroup>
-
       <motion.div variants={itemVariants}>
         <Button
           mt={8}

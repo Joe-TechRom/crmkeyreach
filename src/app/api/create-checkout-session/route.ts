@@ -1,23 +1,10 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { stripe } from '@/utils/stripe';
 import { getURL } from '@/utils/helpers';
 import { subscriptionPlans } from '@/config/plans';
 import { createOrRetrieveCustomer } from '@/lib/supabaseAdmin';
-
-const PRICE_ID_MAP = {
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_MONTHLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_MONTHLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_YEARLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_YEARLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_MONTHLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_MONTHLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_YEARLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_YEARLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_ADDITIONAL_USER_MONTHLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_ADDITIONAL_USER_MONTHLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_ADDITIONAL_USER_YEARLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_ADDITIONAL_USER_YEARLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_MONTHLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_MONTHLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_YEARLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_YEARLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_ADDITIONAL_USER_MONTHLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_ADDITIONAL_USER_MONTHLY,
-  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_ADDITIONAL_USER_YEARLY]: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_ADDITIONAL_USER_YEARLY,
-};
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
@@ -36,57 +23,80 @@ export async function POST(req: Request): Promise<NextResponse> {
       email: session.user.email || ''
     });
 
-    // Base plan line item
-    const line_items = [{
-      price: planIdentifier,
-      quantity: 1
-    }];
+    const planDetails = Object.values(subscriptionPlans).find(
+      (plan) =>
+        plan.monthlyPriceId === planIdentifier || plan.yearlyPriceId === planIdentifier
+    );
 
-    // Add additional users line item if applicable
-    if (metadata.additionalUsers > 0 && metadata.plan_type) {
-      const planKey = metadata.plan_type.toLowerCase();
-      const additionalUserPriceKey = metadata.billingPeriod === 'yearly' 
-        ? `NEXT_PUBLIC_STRIPE_PRICE_ID_${planKey.toUpperCase()}_ADDITIONAL_USER_YEARLY`
-        : `NEXT_PUBLIC_STRIPE_PRICE_ID_${planKey.toUpperCase()}_ADDITIONAL_USER_MONTHLY`;
-      
-      const additionalUserPriceId = process.env[additionalUserPriceKey];
+    if (!planDetails) {
+      return NextResponse.json({ error: 'Invalid plan identifier' }, { status: 400 });
+    }
 
-      if (additionalUserPriceId) {
-        line_items.push({
-          price: additionalUserPriceId,
-          quantity: metadata.additionalUsers
-        });
+    if (metadata.additionalUsers > 0 && planDetails.userLimit) {
+      const totalUsers = metadata.additionalUsers + 1;
+      if (totalUsers > planDetails.userLimit) {
+        return NextResponse.json(
+          { error: `User limit exceeded for ${planDetails.name}. Maximum ${planDetails.userLimit} users allowed.` },
+          { status: 400 }
+        );
       }
     }
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      billing_address_collection: 'required',
-      customer,
-      line_items,
-      mode: 'subscription',
-      allow_promotion_codes: true,
-      subscription_data: {
-        metadata: {
-          ...metadata,
-          user_id: session.user.id
-        }
-      },
-      success_url: `${getURL()}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${getURL()}/checkout`
+    const line_items = [{
+      price: planIdentifier,
+      quantity: 1,
+    }];
+
+  if (metadata.additionalUsers > 0) {
+  const billingPeriod = metadata.billingPeriod === 'yearly' ? 'yearly' : 'monthly';
+  
+  const additionalUserPriceId = billingPeriod === 'yearly' 
+    ? planDetails.additionalUserYearlyPriceId 
+    : planDetails.additionalUserMonthlyPriceId;
+
+  console.log('Additional User Price ID:', additionalUserPriceId);
+  
+  if (additionalUserPriceId) {
+    line_items.push({
+      price: additionalUserPriceId,
+      quantity: Number(metadata.additionalUsers)
     });
+  }
+}
+
+console.log('Final line items:', line_items);
+
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+  payment_method_types: ['card'],
+  billing_address_collection: 'required',
+  customer,
+  line_items,
+  mode: 'subscription',
+  allow_promotion_codes: true,
+  subscription_data: {
+    trial_from_plan: true,
+    metadata: {
+      ...metadata,
+      user_id: session.user.id,
+      userCount: metadata.additionalUsers ? metadata.additionalUsers + 1 : 1,
+      additionalUsers: metadata.additionalUsers || 0  // Add this line
+    },
+  },
+  success_url: `${getURL()}/success?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `${getURL()}/checkout`,
+});
 
     await supabase
       .from('profiles')
       .update({
         subscription_status: 'processing',
         subscription_tier: metadata.plan_type,
-        billing_cycle: metadata.billingPeriod
+        billing_cycle: metadata.billingPeriod,
       })
-      .eq('user_id', session.user.id);
+      .eq('user_id', session.user.id);  // Use session.user instead of user
 
     return NextResponse.json({ sessionId: checkoutSession.id });
-
   } catch (error) {
     console.error('Checkout error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

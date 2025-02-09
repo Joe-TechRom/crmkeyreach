@@ -84,7 +84,9 @@ const CheckoutPage = () => {
 
     if (planId) {
       if (typeof subscriptionPlans === 'object' && subscriptionPlans !== null && subscriptionPlans.hasOwnProperty(planId)) {
-        const selectedPlan = subscriptionPlans[planId];
+        const selectedPlan = Object.values(subscriptionPlans).find(
+          (plan: any) => plan.id === planId
+        );
         if (selectedPlan) {
           setPlan(selectedPlan);
         } else {
@@ -100,82 +102,98 @@ const CheckoutPage = () => {
 
   const calculateTotalPrice = () => {
     if (!plan) return '0.00';
-
     const basePriceString = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
     const basePrice = parseFloat(basePriceString);
     const additionalUserPrice = plan.additionalUserPrice || 0;
     const additionalUsersCost = additionalUsers * additionalUserPrice;
-
     const totalPrice = isYearly
       ? (basePrice + (additionalUsersCost * 12 * 0.9))
       : (basePrice + additionalUsersCost);
-
     return totalPrice.toFixed(2);
   };
 
-const handleCheckout = async () => {
-  if (!stripe || !plan) {
-    toast({
-      title: 'Getting Things Ready',
-      description: 'Please try again in a moment.',
-      status: 'info',
-      duration: 3000,
-    });
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const planIdentifier = isYearly ? plan.yearlyPriceId : plan.monthlyPriceId;
-
-    const response = await fetch('/api/create-checkout-session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        plan: planIdentifier,
-        quantity: 1,
-        metadata: {
-          additionalUsers,
-          billingPeriod: isYearly ? 'yearly' : 'monthly',
-          plan_type: plan.id,
-        },
-      }),
-    });
-
-    const data = await response.json();
-    
-    if (data.sessionId) {
-      const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-      if (result.error) {
-        toast({
-          title: 'Redirecting to Checkout',
-          description: 'Please wait while we prepare your checkout session.',
-          status: 'loading',
-          duration: 2000,
-        });
-      }
-    } else {
+  const handleCheckout = async () => {
+    if (!stripe || !plan) {
       toast({
-        title: 'Quick Update Needed',
-        description: 'We\'re refreshing your checkout session. Please try again.',
+        title: 'Getting Things Ready',
+        description: 'Please try again in a moment.',
         status: 'info',
         duration: 3000,
       });
+      return;
     }
-  } catch (err) {
-    toast({
-      title: 'Just a Moment',
-      description: 'We\'re optimizing your checkout experience. Please try again.',
-      status: 'info',
-      duration: 3000,
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+
+    // Determine the user limit based on the plan
+    let userLimit = 0;
+    if (plan.id === 'team') {
+      userLimit = 20;
+    } else if (plan.id === 'corporate') {
+      userLimit = 75;
+    } else if (plan.id === 'single_user') {
+      userLimit = 1;
+    }
+
+    // Check user limit before proceeding
+    const totalUsers = additionalUsers + 1;
+    if (userLimit && totalUsers > userLimit) {
+      toast({
+        title: 'User Limit Exceeded',
+        description: `This plan allows a maximum of ${userLimit} users.`,
+        status: 'error',
+        duration: 5000,
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const planIdentifier = isYearly ? plan.yearlyPriceId : plan.monthlyPriceId;
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plan: planIdentifier,
+          quantity: 1,
+          metadata: {
+            additionalUsers,
+            billingPeriod: isYearly ? 'yearly' : 'monthly',
+            plan_type: plan.id,
+          },
+        }),
+      });
+      const data = await response.json();
+
+      if (data.sessionId) {
+        const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
+        if (result.error) {
+          toast({
+            title: 'Redirecting to Checkout',
+            description: 'Please wait while we prepare your checkout session.',
+            status: 'loading',
+            duration: 2000,
+          });
+        }
+      } else {
+        toast({
+          title: 'Quick Update Needed',
+          description: 'We\'re refreshing your checkout session. Please try again.',
+          status: 'info',
+          duration: 3000,
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Just a Moment',
+        description: 'We\'re optimizing your checkout experience. Please try again.',
+        status: 'info',
+        duration: 3000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const colors = {
     orange: {
@@ -292,7 +310,7 @@ const handleCheckout = async () => {
                       <FormLabel>Additional Users</FormLabel>
                       <NumberInput
                         min={0}
-                        max={999}
+                        max={plan.id === 'team' ? 19 : 74}
                         value={additionalUsers || 0}
                         onChange={(valueString) => {
                           const value = parseInt(valueString) || 0;
@@ -306,33 +324,54 @@ const handleCheckout = async () => {
                         </NumberInputStepper>
                       </NumberInput>
                       <Text fontSize="sm" color="gray.500" mt={2}>
-                        Base plan includes up to {plan.id === 'team' ? '20' : '150'} users
+                        {plan.id === 'team'
+                          ? 'Team plan includes up to 20 users.'
+                          : 'Corporate plan includes up to 75 users.'}
                       </Text>
                     </FormControl>
+                  )}
+                  {plan.id === 'single_user' && (
+                    <Text fontSize="sm" color="gray.500" mt={2}>
+                      Single User plan includes 1 user.
+                    </Text>
                   )}
                   {additionalUsers > 0 && (
                     <Stack spacing={2}>
                       <Text fontSize="sm" color="gray.500" textAlign="center">
                         Base price: ${isYearly ? plan.yearlyPrice : plan.monthlyPrice}
                       </Text>
-                      {additionalUsers <= (plan.id === 'team' ? 20 : 150) && (
+                      {additionalUsers <= (plan.id === 'team' ? 19 : 74) && (
                         <Text fontSize="sm" color="gray.500" textAlign="center">
                           Additional users: {additionalUsers} × ${plan.additionalUserPrice} =
                           ${(additionalUsers * plan.additionalUserPrice).toFixed(2)}/{isYearly ? 'year' : 'month'}
                         </Text>
                       )}
-                      {additionalUsers > (plan.id === 'team' ? 20 : 150) && (
+                      {additionalUsers > (plan.id === 'team' ? 19 : 74) && (
                         <>
                           <Text fontSize="sm" color="gray.500" textAlign="center">
-                            First {plan.id === 'team' ? '20' : '150'} additional users:
-                            ${((plan.id === 'team' ? 20 : 150) * plan.additionalUserPrice).toFixed(2)}/{isYearly ? 'year' : 'month'}
+                            First {plan.id === 'team' ? '19' : '74'} additional users:
+                            ${((plan.id === 'team' ? 19 : 74) * plan.additionalUserPrice).toFixed(2)}/{isYearly ? 'year' : 'month'}
                           </Text>
                           <Text fontSize="sm" color="orange.500" textAlign="center">
-                            Extra users beyond {plan.id === 'team' ? '20' : '150'}:
-                            {additionalUsers - (plan.id === 'team' ? 20 : 150)} × ${plan.additionalUserPrice} =
-                            ${((additionalUsers - (plan.id === 'team' ? 20 : 150)) * plan.additionalUserPrice).toFixed(2)}/{isYearly ? 'year' : 'month'}
+                            Extra users beyond {plan.id === 'team' ? '19' : '74'}:
+                            {additionalUsers - (plan.id === 'team' ? 19 : 74)} × ${plan.additionalUserPrice} =
+                            ${((additionalUsers - (plan.id === 'team' ? 19 : 74)) * plan.additionalUserPrice).toFixed(2)}/{isYearly ? 'year' : 'month'}
                           </Text>
                         </>
+                      )}
+                      {plan.id === 'team' && additionalUsers > 19 && (
+                        <Alert status="warning" rounded="md">
+                          <AlertIcon />
+                          You have selected {additionalUsers + 1} users, which exceeds the Team plan limit of 20.
+                          Please reduce the number of additional users.
+                        </Alert>
+                      )}
+                      {plan.id === 'corporate' && additionalUsers > 74 && (
+                        <Alert status="warning" rounded="md">
+                          <AlertIcon />
+                          You have selected {additionalUsers + 1} users, which exceeds the Corporate plan limit of 75.
+                          Please reduce the number of additional users.
+                        </Alert>
                       )}
                     </Stack>
                   )}
@@ -348,6 +387,10 @@ const handleCheckout = async () => {
                     }}
                     height="16"
                     fontSize="lg"
+                    isDisabled={
+                      (plan.id === 'team' && additionalUsers > 19) ||
+                      (plan.id === 'corporate' && additionalUsers > 74)
+                    }
                   >
                     Complete Purchase
                   </Button>

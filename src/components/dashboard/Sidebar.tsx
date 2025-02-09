@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
 import {
   Box, VStack, Icon, Text, Flex, useColorModeValue, IconButton, Button,
   Accordion, AccordionItem, AccordionButton, AccordionPanel
@@ -26,15 +26,14 @@ export function useView() {
   }
   return context;
 }
+
 // Provider component to manage the current view
 export function ViewProvider({ children }: { children: React.ReactNode }) {
   const [currentView, setCurrentView] = useState('/dashboard'); // Default view
-
   const value = {
     currentView,
     setCurrentView,
   };
-
   return <ViewContext.Provider value={value}>{children}</ViewContext.Provider>;
 }
 
@@ -82,15 +81,59 @@ export function Sidebar() {
     fetchUserPlan();
   }, [supabase]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut();
     router.push('/signin'); // Redirect to sign-in page
-  };
+  }, [supabase, router]);
 
-  const handleNavigation = (path: string) => {
+  const handleNavigation = useCallback((path: string) => {
     setCurrentView(path); // Update the current view
     // No router.push here!
-  };
+  }, [setCurrentView]);
+
+  const renderMenuItems = useCallback(() => {
+    const colorModeValue = useColorModeValue('gray.700', 'gray.200'); // Get the color value here
+
+    return menuItems.map((category, idx) => {
+      return (
+        <AccordionItem key={idx} border="none">
+          <AccordionButton
+            px={4}
+            py={2}
+            _hover={{ bg: 'transparent' }}
+          >
+            <Text fontWeight="bold" color={colorModeValue}>
+              {category.category}
+            </Text>
+          </AccordionButton>
+          <AccordionPanel pb={4}>
+            <VStack spacing={2} align="stretch">
+              {category.items.map((item) => (
+                <Flex
+                  key={item.name}
+                  align="center"
+                  p={2}
+                  cursor="pointer"
+                  borderRadius="lg"
+                  role="group"
+                  onClick={() => handleNavigation(item.path)} // Use handleNavigation
+                  _hover={{
+                    bgGradient: colors.orange.gradient,
+                    color: 'white',
+                    transform: 'translateX(8px)'
+                  }}
+                  transition="all 0.2s"
+                >
+                  <Icon as={item.icon} boxSize={5} />
+                  <Text ml={4} fontSize="sm">{item.name}</Text>
+                </Flex>
+              ))}
+            </VStack>
+          </AccordionPanel>
+        </AccordionItem>
+      );
+    });
+  }, [menuItems, handleNavigation, colors.orange.gradient]);
 
   return (
     <Box
@@ -116,7 +159,6 @@ export function Sidebar() {
           color: 'white'
         }}
       />
-
       <Box
         w="64"
         h="full"
@@ -133,45 +175,8 @@ export function Sidebar() {
       >
         <VStack spacing={4} align="stretch">
           <Accordion allowMultiple defaultIndex={[0]}>
-            {menuItems.map((category, idx) => (
-              <AccordionItem key={idx} border="none">
-                <AccordionButton 
-                  px={4} 
-                  py={2}
-                  _hover={{ bg: 'transparent' }}
-                >
-                  <Text fontWeight="bold" color={useColorModeValue('gray.700', 'gray.200')}>
-                    {category.category}
-                  </Text>
-                </AccordionButton>
-                <AccordionPanel pb={4}>
-                  <VStack spacing={2} align="stretch">
-                    {category.items.map((item) => (
-                      <Flex
-                        key={item.name}
-                        align="center"
-                        p={2}
-                        cursor="pointer"
-                        borderRadius="lg"
-                        role="group"
-                        onClick={() => handleNavigation(item.path)} // Use handleNavigation
-                        _hover={{
-                          bgGradient: colors.orange.gradient,
-                          color: 'white',
-                          transform: 'translateX(8px)'
-                        }}
-                        transition="all 0.2s"
-                      >
-                        <Icon as={item.icon} boxSize={5} />
-                        <Text ml={4} fontSize="sm">{item.name}</Text>
-                      </Flex>
-                    ))}
-                  </VStack>
-                </AccordionPanel>
-              </AccordionItem>
-            ))}
+            {renderMenuItems()}
           </Accordion>
-
           <Button
             leftIcon={<FiLogOut />}
             onClick={handleSignOut}

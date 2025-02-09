@@ -6,6 +6,7 @@ export const subscriptionPlans = {
     yearlyPrice: '539.89',
     monthlyPriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_MONTHLY,
     yearlyPriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_SINGLE_USER_YEARLY,
+    userLimit: 1, // Added user limit
     features: [
       { text: 'All core CRM features', included: true },
       { text: 'Lead CRUD operations', included: true },
@@ -29,6 +30,7 @@ export const subscriptionPlans = {
     additionalUserYearlyPriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_TEAM_ADDITIONAL_USER_YEARLY,
     popular: true,
     additionalUserPrice: 10.00,
+    userLimit: 20, // Added user limit
     features: [
       { text: 'Everything in Single User, plus:', included: true },
       { text: 'Up to 20 team members', included: true },
@@ -51,9 +53,10 @@ export const subscriptionPlans = {
     additionalUserMonthlyPriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_ADDITIONAL_USER_MONTHLY,
     additionalUserYearlyPriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_CORPORATE_ADDITIONAL_USER_YEARLY,
     additionalUserPrice: 7.99,
+    userLimit: 75, // Added user limit
     features: [
       { text: 'Everything in Team, plus:', included: true },
-      { text: 'Up to 150 team members', included: true },
+      { text: 'Up to 75 team members', included: true },
       { text: 'Enterprise-grade security', included: true },
       { text: 'Custom integrations', included: true },
       { text: 'Dedicated account manager', included: true },
