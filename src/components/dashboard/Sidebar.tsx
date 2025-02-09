@@ -8,10 +8,9 @@ import {
 import { FiMenu, FiLogOut } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useDisclosure, useBreakpointValue } from '@chakra-ui/react';
-import { PLAN_FEATURES, FeatureCategory } from './features'; // Import from features.ts
+import { PLAN_FEATURES, FeatureCategory } from './features';
 import { useRouter } from 'next/navigation';
 
-// Create a context for the current view
 interface ViewContextProps {
   currentView: string;
   setCurrentView: (view: string) => void;
@@ -27,9 +26,8 @@ export function useView() {
   return context;
 }
 
-// Provider component to manage the current view
 export function ViewProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setCurrentView] = useState('/dashboard'); // Default view
+  const [currentView, setCurrentView] = useState('/dashboard/single-user');
   const value = {
     currentView,
     setCurrentView,
@@ -37,14 +35,18 @@ export function ViewProvider({ children }: { children: React.ReactNode }) {
   return <ViewContext.Provider value={value}>{children}</ViewContext.Provider>;
 }
 
+// Remove this interface
+// interface SidebarProps {
+//   setCurrentView: (view: string) => void;
+// }
+
+// Update the Sidebar function definition
 export function Sidebar() {
   const supabase = createClientComponentClient();
   const { isOpen, onToggle } = useDisclosure({ defaultIsOpen: true });
   const [userPlanType, setUserPlanType] = useState('single-user');
   const [menuItems, setMenuItems] = useState<FeatureCategory[]>(PLAN_FEATURES['single-user']);
-  const { setCurrentView } = useView(); // Use the context
   const router = useRouter();
-
   const colors = {
     orange: {
       light: '#FF9A5C',
@@ -52,9 +54,11 @@ export function Sidebar() {
       gradient: 'linear-gradient(135deg, #FF6B2C 0%, #FF9A5C 100%)'
     }
   };
-
   const bgColor = useColorModeValue('white', 'gray.800');
   const shadowColor = useColorModeValue('rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0.4)');
+
+  // Use the useView hook to access setCurrentView
+  const { setCurrentView } = useView();
 
   useEffect(() => {
     const fetchUserPlan = async () => {
@@ -66,10 +70,9 @@ export function Sidebar() {
             .select('subscription_tier')
             .eq('user_id', session.user.id)
             .single();
-
           if (profile?.subscription_tier) {
             setUserPlanType(profile.subscription_tier);
-            setMenuItems(PLAN_FEATURES[profile.subscription_tier] || PLAN_FEATURES['single-user']);
+            setMenuItems(PLAN_FEATURES[profile?.subscription_tier as keyof typeof PLAN_FEATURES] || PLAN_FEATURES['single-user']);
           }
         }
       } catch (error) {
@@ -77,23 +80,26 @@ export function Sidebar() {
         setMenuItems(PLAN_FEATURES['single-user']);
       }
     };
-
     fetchUserPlan();
   }, [supabase]);
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut();
-    router.push('/signin'); // Redirect to sign-in page
+    router.push('/signin');
   }, [supabase, router]);
 
   const handleNavigation = useCallback((path: string) => {
-    setCurrentView(path); // Update the current view
-    // No router.push here!
-  }, [setCurrentView]);
+  // If it's the dashboard path, stay in current tier view
+  if (path === '/dashboard') {
+    setCurrentView(`/dashboard/${userPlanType}`);
+  } else {
+    setCurrentView(path);
+  }
+}, [setCurrentView, userPlanType]);
+
 
   const renderMenuItems = useCallback(() => {
-    const colorModeValue = useColorModeValue('gray.700', 'gray.200'); // Get the color value here
-
+    const colorModeValue = useColorModeValue('gray.700', 'gray.200');
     return menuItems.map((category, idx) => {
       return (
         <AccordionItem key={idx} border="none">
@@ -116,7 +122,7 @@ export function Sidebar() {
                   cursor="pointer"
                   borderRadius="lg"
                   role="group"
-                  onClick={() => handleNavigation(item.path)} // Use handleNavigation
+                  onClick={() => handleNavigation(item.path)}
                   _hover={{
                     bgGradient: colors.orange.gradient,
                     color: 'white',
